@@ -79,8 +79,6 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.image }}
             ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/redline-ai/${{ env.SERVICE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   # ── Deploy ────────────────────────────────────────────────────────
   deploy:
