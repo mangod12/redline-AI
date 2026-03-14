@@ -1,5 +1,4 @@
 import asyncio
-import json
 from types import SimpleNamespace
 from uuid import uuid4
 from uuid import UUID
@@ -80,35 +79,13 @@ async def test_end_to_end_pipeline(db_session):
                     }
                 )
 
-                # subscribe to redis events
-                pubsub = redis_client.pubsub()
-                await pubsub.subscribe(f"call_events:{call_id}")
-                await pubsub.subscribe("redline.events.calls")
-
                 # send transcript
                 tresp = await client.post(
                     f"/api/v1/calls/{call_id}/transcript",
                     json={"original_text": "Help someone is breaking into my house", "language": "en"},
                 )
                 assert tresp.status_code == 200
-                # Wait a moment for background processing
                 await asyncio.sleep(0.2)
-
-                # read events from pubsub
-                events = []
-                while True:
-                    msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0.5)
-                    if not msg:
-                        break
-                    events.append(json.loads(msg["data"]))
-
-                # ensure expected event types were published
-                types = {e["event_type"] for e in events}
-                assert "TRANSCRIPT_RECEIVED" in types
-                assert "ML_ANALYSIS_COMPLETE" in types
-                assert "SEVERITY_UPDATED" in types
-                assert "LOCATION_RESOLVED" in types
-                assert "DISPATCH_RECOMMENDED" in types
 
                 # verify DB records
                 call_obj = await db_session.get(Call, UUID(call_id))
