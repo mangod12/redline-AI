@@ -1,8 +1,9 @@
 """Mock dispatch plugin."""
 
-from typing import Any, Dict
-from ..base import BasePlugin
+from typing import Any
+
 from ...agents.dispatch.mock_dispatch_agent import MockDispatchAgent
+from ..base import BasePlugin
 
 
 class MockDispatchPlugin(BasePlugin):
@@ -17,7 +18,7 @@ class MockDispatchPlugin(BasePlugin):
     async def shutdown(self) -> None:
         pass
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         return {"type": "dispatch", "mock": True}
 
     async def create_agent(self) -> MockDispatchAgent:

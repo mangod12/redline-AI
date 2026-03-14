@@ -1,11 +1,9 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 import asyncio
 import json
 import logging
-from typing import Dict
-from uuid import UUID
 
-from app.api.deps import get_current_user
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
 from app.core.redis_client import get_redis_client
 
 router = APIRouter()
@@ -14,7 +12,7 @@ logger = logging.getLogger("redline_ai")
 class ConnectionManager:
     def __init__(self):
         # Maps call_id -> list of websockets
-        self.active_connections: Dict[str, list[WebSocket]] = {}
+        self.active_connections: dict[str, list[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, call_id: str):
         await websocket.accept()
@@ -50,7 +48,8 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
         return
 
     try:
-        from jose import jwt, JWTError
+        from jose import jwt
+
         from app.core.config import settings
         from app.core.security import ALGORITHM
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
@@ -61,13 +60,13 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
         return
 
     await manager.connect(websocket, call_id)
-    
+
     redis = get_redis_client()
     if not redis:
         logger.error("Redis not initialized for websockets")
         manager.disconnect(websocket, call_id)
         return
-        
+
     pubsub = redis.pubsub()
     channel_name = f"call_events:{call_id}"
     await pubsub.subscribe(channel_name)
@@ -85,7 +84,7 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
                     "call_id": data.get("call_id"),
                 }
                 await manager.broadcast_to_call(call_id, simplified)
-                
+
             # Yield to other tasks
             await asyncio.sleep(0.01)
 
@@ -108,6 +107,7 @@ async def dashboard_websocket(websocket: WebSocket):
 
     try:
         from jose import jwt
+
         from app.core.config import settings
         from app.core.security import ALGORITHM
         jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])

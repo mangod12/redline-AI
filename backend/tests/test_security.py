@@ -8,7 +8,6 @@ Covers:
 - Production config validation guards
 """
 from datetime import timedelta
-from unittest.mock import patch
 
 import pytest
 from jose import jwt

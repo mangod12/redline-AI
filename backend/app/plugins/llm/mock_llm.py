@@ -1,7 +1,8 @@
 """Mock LLM plugin for testing purposes."""
 
 import asyncio
-from typing import Any, Dict
+from typing import Any
+
 from ..base import BasePlugin
 
 
@@ -23,7 +24,7 @@ class MockLLMPlugin(BasePlugin):
         """Shutdown the mock LLM plugin."""
         pass
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         """Return capabilities of the mock LLM plugin."""
         return {
             "type": "llm",

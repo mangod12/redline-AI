@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import List, Optional
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -38,7 +37,7 @@ class Settings(BaseSettings):
 
     # External services
     ML_SERVICE_URL: str = os.getenv("ML_SERVICE_URL", "http://localhost:8001")
-    GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY")
+    GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
 
     INTENT_MODEL_NAME: str = "distilbert-base-uncased"
     INTENT_ONNX_PATH: str = str(
@@ -49,14 +48,14 @@ class Settings(BaseSettings):
     WHISPER_MODEL_SIZE: str = "small"
 
     # ---- CORS -----------------------------------------------------------
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     # ---- Docs -----------------------------------------------------------
     ENABLE_DOCS: bool = os.getenv("ENABLE_DOCS", "true").lower() == "true"
 
     # ---- Production guards ----------------------------------------------
     @model_validator(mode="after")
-    def validate_production_settings(self) -> "Settings":
+    def validate_production_settings(self) -> Settings:
         if self.APP_ENV.lower() == "production":
             if self.USE_SQLITE:
                 raise ValueError("USE_SQLITE must be false in production")

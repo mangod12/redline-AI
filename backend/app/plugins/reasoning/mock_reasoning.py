@@ -1,8 +1,9 @@
 """Mock reasoning plugin."""
 
-from typing import Any, Dict
-from ..base import BasePlugin
+from typing import Any
+
 from ...agents.reasoning.mock_reasoning_agent import MockReasoningAgent
+from ..base import BasePlugin
 
 
 class MockReasoningPlugin(BasePlugin):
@@ -17,7 +18,7 @@ class MockReasoningPlugin(BasePlugin):
     async def shutdown(self) -> None:
         pass
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         return {"type": "reasoning", "mock": True}
 
     async def create_agent(self) -> MockReasoningAgent:

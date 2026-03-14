@@ -2,9 +2,8 @@
 
 import importlib
 import inspect
-from typing import Any, Dict, List, Optional, Type
-from pathlib import Path
 import logging
+from pathlib import Path
 
 from .base import BasePlugin
 
@@ -19,10 +18,10 @@ class PluginRegistry:
     """
 
     def __init__(self):
-        self._plugins: Dict[str, BasePlugin] = {}
-        self._plugin_classes: Dict[str, Type[BasePlugin]] = {}
+        self._plugins: dict[str, BasePlugin] = {}
+        self._plugin_classes: dict[str, type[BasePlugin]] = {}
 
-    async def load_plugin_from_path(self, plugin_path: str, plugin_name: str) -> Optional[BasePlugin]:
+    async def load_plugin_from_path(self, plugin_path: str, plugin_name: str) -> BasePlugin | None:
         """Load a plugin from a Python module path.
 
         Args:
@@ -61,7 +60,7 @@ class PluginRegistry:
             logger.error(f"Failed to load plugin {plugin_name} from {plugin_path}: {e}")
             return None
 
-    async def load_plugins_from_directory(self, directory: Path, plugin_type: str) -> List[str]:
+    async def load_plugins_from_directory(self, directory: Path, plugin_type: str) -> list[str]:
         """Load all plugins from a directory.
 
         Args:
@@ -90,7 +89,7 @@ class PluginRegistry:
 
         return loaded_plugins
 
-    def get_plugin(self, name: str) -> Optional[BasePlugin]:
+    def get_plugin(self, name: str) -> BasePlugin | None:
         """Get a loaded plugin by name.
 
         Args:
@@ -101,7 +100,7 @@ class PluginRegistry:
         """
         return self._plugins.get(name)
 
-    def get_plugin_class(self, name: str) -> Optional[Type[BasePlugin]]:
+    def get_plugin_class(self, name: str) -> type[BasePlugin] | None:
         """Get a plugin class by name.
 
         Args:
@@ -112,7 +111,7 @@ class PluginRegistry:
         """
         return self._plugin_classes.get(name)
 
-    def list_plugins(self) -> List[str]:
+    def list_plugins(self) -> list[str]:
         """List all loaded plugin names.
 
         Returns:

@@ -1,16 +1,18 @@
-import httpx
 import logging
-from typing import Any, Dict
-from ..base import BaseAgent
-from ...core.schemas import EmotionAnalysis, EmotionType, Transcript
+from typing import Any
+
+import httpx
+
 from ...core.config import settings
+from ...core.schemas import EmotionAnalysis, EmotionType
+from ..base import BaseAgent
 
 logger = logging.getLogger("redline_ai.emotion")
 
 class MockEmotionAgent(BaseAgent):
     """Real Emotion Agent calling the ML Microservice."""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: dict[str, Any] = None):
         self.config = config or {}
         self.service_url = f"{settings.ML_SERVICE_URL}/analyze-audio"
 
@@ -23,14 +25,14 @@ class MockEmotionAgent(BaseAgent):
             async with httpx.AsyncClient() as client:
                 files = {'file': ('audio.wav', input_data, 'audio/wav')}
                 response = await client.post(self.service_url, files=files, timeout=10.0)
-                
+
                 if response.status_code == 200:
                     data = response.json()
-                    
+
                     # Map string emotion from RAVDESS to Enum
                     emotion_str = data.get("emotion", "neutral").upper()
                     primary = getattr(EmotionType, emotion_str, EmotionType.NEUTRAL)
-                    
+
                     return EmotionAnalysis(
                         primary_emotion=primary,
                         emotion_scores={primary: data.get("confidence", 0.0)},

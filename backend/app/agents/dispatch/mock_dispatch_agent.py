@@ -1,15 +1,16 @@
 """Mock dispatch agent."""
 
 import asyncio
-from typing import Any, Dict
+from typing import Any
+
+from ...core.schemas import DispatchAction, DispatchReport, SafetyOutput
 from ..base import BaseAgent
-from ...core.schemas import DispatchReport, DispatchAction, SafetyOutput
 
 
 class MockDispatchAgent(BaseAgent):
     """Mock agent for dispatch decisions."""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: dict[str, Any] = None):
         self.config = config or {}
 
     async def process(self, input_data: SafetyOutput) -> DispatchReport:

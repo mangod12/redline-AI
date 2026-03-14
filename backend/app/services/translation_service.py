@@ -1,6 +1,6 @@
-import httpx
 import logging
-from typing import Optional
+
+import httpx
 
 logger = logging.getLogger("redline_ai.translation")
 
@@ -29,15 +29,15 @@ class TranslationService:
 
         try:
             async with httpx.AsyncClient() as client:
-                # Note: Some public instances require an API key, 
+                # Note: Some public instances require an API key,
                 # but many student-friendly ones are open.
                 response = await client.post(self.api_url, data=payload, timeout=10.0)
-                
+
                 if response.status_code == 200:
                     return response.json().get("translatedText", text)
                 else:
                     logger.warning(f"LibreTranslate returned status {response.status_code}")
         except Exception as e:
             logger.error(f"Translation error: {e}")
-            
+
         return f"{text} [translation failed]"

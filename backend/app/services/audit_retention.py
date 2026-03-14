@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete
 
@@ -17,7 +17,7 @@ AUDIT_RETENTION_DAYS = 90
 
 async def purge_old_audit_logs() -> int:
     """Delete audit log entries older than AUDIT_RETENTION_DAYS. Returns count deleted."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=AUDIT_RETENTION_DAYS)
+    cutoff = datetime.now(UTC) - timedelta(days=AUDIT_RETENTION_DAYS)
     try:
         async with AsyncSessionLocal() as db:
             result = await db.execute(

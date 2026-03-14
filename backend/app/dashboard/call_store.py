@@ -9,11 +9,11 @@ import threading
 import uuid
 from collections import deque
 from datetime import datetime
-from typing import Any, Deque, Dict, List
+from typing import Any
 
 _MAXLEN = 100
 _lock = threading.Lock()
-_calls: Deque[Dict[str, Any]] = deque(maxlen=_MAXLEN)
+_calls: deque[dict[str, Any]] = deque(maxlen=_MAXLEN)
 
 
 def add_call(
@@ -33,7 +33,7 @@ def add_call(
 ) -> str:
     """Insert a new call record. Returns the generated call_id."""
     call_id = uuid.uuid4().hex[:8].upper()
-    record: Dict[str, Any] = {
+    record: dict[str, Any] = {
         "call_id": call_id,
         "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "transcript": transcript,
@@ -54,7 +54,7 @@ def add_call(
     return call_id
 
 
-def get_recent(limit: int = 50) -> List[Dict[str, Any]]:
+def get_recent(limit: int = 50) -> list[dict[str, Any]]:
     """Return up to `limit` most-recent call records."""
     with _lock:
         return list(_calls)[:limit]

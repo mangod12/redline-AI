@@ -1,5 +1,4 @@
 import re
-from typing import Optional
 from uuid import UUID
 
 from pydantic import EmailStr, field_validator
@@ -46,6 +45,6 @@ class RefreshRequest(CoreModel):
 
 
 class TokenPayload(CoreModel):
-    sub: Optional[str] = None
-    tenant_id: Optional[str] = None
-    role: Optional[str] = None
+    sub: str | None = None
+    tenant_id: str | None = None
+    role: str | None = None

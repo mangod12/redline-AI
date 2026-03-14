@@ -1,12 +1,13 @@
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import Column, DateTime, ForeignKey, String, Uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Uuid
 from sqlalchemy.orm import declarative_base, declared_attr
 
 
 def _utc_now():
     """Return timezone-aware UTC datetime (replaces deprecated utcnow())."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 Base = declarative_base()

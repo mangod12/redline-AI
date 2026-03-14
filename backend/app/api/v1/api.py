@@ -1,5 +1,6 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import calls, severity, emergency
+
+from app.api.v1.endpoints import calls, emergency, severity
 
 api_router = APIRouter()
 # Note: auth router is mounted separately in main.py (public, no JWT required)

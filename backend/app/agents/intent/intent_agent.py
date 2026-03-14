@@ -5,9 +5,8 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-import numpy as np
 from prometheus_client import Counter, Histogram
 
 from app.agents.base import BaseAgent
@@ -86,7 +85,7 @@ def _keyword_fallback(text: str, reason: str) -> IntentAnalysis:
 
 
 class IntentAgent(BaseAgent):
-    def __init__(self, loader: Optional["IntentModelLoader"] = None) -> None:
+    def __init__(self, loader: IntentModelLoader | None = None) -> None:
         self._loader = loader
 
     def get_input_schema(self) -> type:
@@ -109,7 +108,7 @@ class IntentAgent(BaseAgent):
         try:
             probs = await asyncio.wait_for(self._loader.predict_proba(text), timeout=SOFT_TIMEOUT_S)
             INTENT_LATENCY.observe(time.perf_counter() - start)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             INTENT_FALLBACK_COUNT.labels(reason="timeout").inc()
             return _keyword_fallback(text, "timeout")
         except Exception:

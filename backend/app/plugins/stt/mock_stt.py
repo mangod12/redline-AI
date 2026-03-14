@@ -1,9 +1,9 @@
 """Mock STT plugin for testing purposes."""
 
-import asyncio
-from typing import Any, Dict
-from ..base import BasePlugin
+from typing import Any
+
 from ...agents.stt.mock_stt_agent import MockSTTAgent
+from ..base import BasePlugin
 
 
 class MockSTTPlugin(BasePlugin):
@@ -25,7 +25,7 @@ class MockSTTPlugin(BasePlugin):
         """Shutdown the mock STT plugin."""
         pass
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         """Return capabilities of the mock STT plugin."""
         return {
             "type": "stt",

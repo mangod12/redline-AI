@@ -1,6 +1,7 @@
-from typing import Optional
 from uuid import UUID
-from app.schemas.base import TenantBaseSchema, CoreModel
+
+from app.schemas.base import CoreModel, TenantBaseSchema
+
 
 class TranscriptCreate(CoreModel):
     original_text: str
@@ -9,5 +10,5 @@ class TranscriptCreate(CoreModel):
 class TranscriptResponse(TenantBaseSchema):
     call_id: UUID
     original_text: str
-    translated_text: Optional[str] = None
+    translated_text: str | None = None
     language: str

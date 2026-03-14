@@ -2,8 +2,8 @@ import asyncio
 import json
 import logging
 
-from app.core.redis_client import get_redis_client
 from app.core.database import AsyncSessionLocal
+from app.core.redis_client import get_redis_client
 from app.services.call_processing import CallProcessor
 
 logger = logging.getLogger("redline_ai.event")

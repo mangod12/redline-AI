@@ -1,7 +1,8 @@
 """Base classes for agents in the Redline AI system."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, TypeVar
+from typing import TypeVar
+
 from pydantic import BaseModel
 
 TInput = TypeVar('TInput', bound=BaseModel)

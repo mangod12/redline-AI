@@ -7,15 +7,9 @@ Covers:
 
 All tests use the in-memory SQLite database and mock Redis where needed.
 """
-import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from app.core.security import get_password_hash
-from app.models.tenant import Tenant
-from app.models.user import RoleEnum, User
-
 
 # ===========================================================================
 # Login endpoint

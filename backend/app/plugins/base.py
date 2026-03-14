@@ -1,9 +1,8 @@
 """Base classes for plugins in the Redline AI system."""
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
 import asyncio
-from pydantic import BaseModel
+from abc import ABC, abstractmethod
+from typing import Any
 
 
 class BasePlugin(ABC):
@@ -13,7 +12,7 @@ class BasePlugin(ABC):
     swapped dynamically. Each plugin has a name, version, and configuration.
     """
 
-    def __init__(self, name: str, version: str, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, version: str, config: dict[str, Any] | None = None):
         self.name = name
         self.version = version
         self.config = config or {}
@@ -29,7 +28,7 @@ class BasePlugin(ABC):
         pass
 
     @abstractmethod
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         """Return the capabilities and metadata of this plugin."""
         pass
 

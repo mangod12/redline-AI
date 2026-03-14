@@ -1,8 +1,9 @@
 """Mock emotion plugin."""
 
-from typing import Any, Dict
-from ..base import BasePlugin
+from typing import Any
+
 from ...agents.emotion.mock_emotion_agent import MockEmotionAgent
+from ..base import BasePlugin
 
 
 class MockEmotionPlugin(BasePlugin):
@@ -17,7 +18,7 @@ class MockEmotionPlugin(BasePlugin):
     async def shutdown(self) -> None:
         pass
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         return {"type": "emotion", "mock": True}
 
     async def create_agent(self) -> MockEmotionAgent:

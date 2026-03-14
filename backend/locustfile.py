@@ -20,7 +20,6 @@ from typing import Any
 from gevent.lock import Semaphore
 from locust import HttpUser, LoadTestShape, constant_throughput, events, task
 
-
 TRANSCRIPTS = [
     "Caller reports not breathing and possible cardiac arrest at home.",
     "Fire spreading rapidly from kitchen to hallway in apartment block.",

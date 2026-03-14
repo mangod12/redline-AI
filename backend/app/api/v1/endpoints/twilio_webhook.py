@@ -6,13 +6,14 @@ providing a secure ingress point for Twilio voice/SMS webhooks.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.endpoints.emergency import process_emergency_core
 from app.core.database import get_db
 from app.core.security import limiter, verify_twilio_signature
-from app.api.v1.endpoints.emergency import process_emergency_core
 
 router = APIRouter()
 

@@ -7,13 +7,11 @@ All ML components (IntentAgent, EmotionAgent, WhisperService) and external
 services (Redis, dashboard call_store) are mocked so tests run against the
 in-memory SQLite database only.
 """
-import uuid
 from dataclasses import dataclass
 from enum import Enum
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Mock data classes matching what the agents return

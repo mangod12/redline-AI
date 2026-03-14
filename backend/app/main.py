@@ -10,29 +10,28 @@ Changes vs original:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
-import asyncio
 from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette_prometheus import PrometheusMiddleware, metrics
 
-from app.core.config import settings
-from app.core.redis_client import close_redis, init_redis
-from app.core.database import engine
 from app.api.v1.api import api_router
+from app.core.config import settings
+from app.core.database import engine
+from app.core.redis_client import close_redis, init_redis
 from app.core.security import limiter, require_jwt_token
 from app.core.security_headers import SecurityHeadersMiddleware
+from app.ml.intent_model_loader import IntentModelLoader
 from app.models.base import Base
 from app.services.whisper_service import WhisperService
-from app.ml.intent_model_loader import IntentModelLoader
-
-from slowapi.errors import RateLimitExceeded
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.middleware import SlowAPIMiddleware
 
 # ---------------------------------------------------------------------------
 # structlog JSON configuration (runs at import time)
@@ -153,11 +152,11 @@ app.add_middleware(
 # Routers
 # ---------------------------------------------------------------------------
 
-from app.websockets.connection_manager import router as websocket_router  # noqa: E402
-from app.dashboard.routes import router as dashboard_router  # noqa: E402
+from app.api.v1.endpoints.auth import router as auth_router  # noqa: E402
 from app.api.v1.endpoints.emergency import router as emergency_router  # noqa: E402
 from app.api.v1.endpoints.twilio_webhook import router as twilio_router  # noqa: E402
-from app.api.v1.endpoints.auth import router as auth_router  # noqa: E402
+from app.dashboard.routes import router as dashboard_router  # noqa: E402
+from app.websockets.connection_manager import router as websocket_router  # noqa: E402
 
 # Auth routes are public (login/refresh don't require a token)
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])

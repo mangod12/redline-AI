@@ -12,9 +12,9 @@ Pipeline:
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import uuid
-import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
@@ -25,11 +25,11 @@ from app.core.database import get_db
 from app.core.redis_client import get_redis_client
 from app.core.schemas import Transcript
 from app.core.security import limiter
+from app.dashboard import call_store
 from app.models.emergency_call import EmergencyCall
 from app.services.cache_service import cache_call
 from app.services.dispatch_service import select_responder
 from app.services.severity_service import compute_severity
-from app.dashboard import call_store
 
 log = logging.getLogger("redline_ai.api.emergency")
 

@@ -1,8 +1,11 @@
-from sqlalchemy import Column, String, Enum as SQLEnum, ForeignKey
-from sqlalchemy.orm import relationship
 import enum
 
+from sqlalchemy import Column, ForeignKey, String
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import relationship
+
 from app.models.base import TenantModel
+
 
 class CallStatus(str, enum.Enum):
     active = "active"
@@ -13,7 +16,7 @@ class Call(TenantModel):
 
     caller_number = Column(String, index=True, nullable=False)
     status = Column(SQLEnum(CallStatus), default=CallStatus.active, nullable=False)
-    
+
     # tenant_id is inherited from TenantModel — access via self.tenant_id directly
     transcripts = relationship("Transcript", back_populates="call", cascade="all, delete")
     severity_reports = relationship("SeverityReport", back_populates="call", cascade="all, delete")
@@ -27,5 +30,5 @@ class Transcript(TenantModel):
     original_text = Column(String, nullable=False)
     translated_text = Column(String, nullable=True)
     language = Column(String, default="en", nullable=False)
-    
+
     call = relationship("Call", back_populates="transcripts")

@@ -8,10 +8,8 @@ break the request pipeline.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
 from app.models.audit_log import AuditLog
@@ -21,12 +19,12 @@ log = logging.getLogger("redline_ai.audit")
 
 async def record_audit(
     *,
-    tenant_id: Optional[UUID] = None,
-    user_id: Optional[UUID] = None,
+    tenant_id: UUID | None = None,
+    user_id: UUID | None = None,
     action: str,
-    entity_type: Optional[str] = None,
-    entity_id: Optional[str] = None,
-    details: Optional[Dict[str, Any]] = None,
+    entity_type: str | None = None,
+    entity_id: str | None = None,
+    details: dict[str, Any] | None = None,
 ) -> None:
     """Write an audit log entry in its own DB session (fire-and-forget)."""
     try:

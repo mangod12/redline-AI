@@ -1,10 +1,10 @@
 """PostgreSQL models for long-term storage using SQLAlchemy."""
 
-from sqlalchemy import Column, Integer, String, DateTime, Float, Text, JSON, ForeignKey
+from datetime import datetime
+
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
-from typing import Dict, Any
 
 Base = declarative_base()
 

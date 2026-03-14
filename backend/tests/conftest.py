@@ -8,11 +8,9 @@ Provides:
 """
 import sys
 import uuid
-from pathlib import Path
 from datetime import timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
@@ -28,14 +26,12 @@ sys.path.insert(0, str(backend_dir))
 # ---------------------------------------------------------------------------
 # Import application modules
 # ---------------------------------------------------------------------------
-from app.models.base import Base  # noqa: E402
-from app.models.tenant import Tenant  # noqa: E402
-from app.models.user import User, RoleEnum  # noqa: E402
-from app.models.call import Call, CallStatus  # noqa: E402
-from app.models.emergency_call import EmergencyCall  # noqa: E402
-from app.core.security import create_access_token, get_password_hash  # noqa: E402
-from app.core.database import get_db  # noqa: E402
-from app.core.config import settings as _app_settings  # noqa: E402
+from app.core.config import settings as _app_settings
+from app.core.database import get_db
+from app.core.security import create_access_token, get_password_hash
+from app.models.base import Base
+from app.models.tenant import Tenant
+from app.models.user import RoleEnum, User
 
 # ---------------------------------------------------------------------------
 # Ensure SECRET_KEY has a non-empty test value for JWT signing/verification
@@ -160,12 +156,13 @@ async def superadmin_token(superadmin_user: User) -> str:
 def _build_test_app():
     """Build a minimal FastAPI app that mirrors production routing
     but without heavy lifespan dependencies (Whisper, Redis, ML models)."""
-    from fastapi import FastAPI, Depends
-    from app.core.security_headers import SecurityHeadersMiddleware
-    from app.core.security import require_jwt_token
+    from fastapi import Depends, FastAPI
+
     from app.api.v1.endpoints.auth import router as auth_router
     from app.api.v1.endpoints.calls import router as calls_router
     from app.api.v1.endpoints.emergency import router as emergency_router
+    from app.core.security import require_jwt_token
+    from app.core.security_headers import SecurityHeadersMiddleware
 
     app = FastAPI()
     app.add_middleware(SecurityHeadersMiddleware)
