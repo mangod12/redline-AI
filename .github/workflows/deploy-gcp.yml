@@ -135,4 +135,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**URL:** ${URL}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ needs.build.outputs.image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/redline-ai/${{ env.SERVICE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
