@@ -19,6 +19,7 @@ jobs:
   # ── Build & Push ──────────────────────────────────────────────────
   build:
     name: Build & Push to Artifact Registry
+    if: ${{ secrets.GCP_PROJECT_ID != '' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,6 +65,7 @@ jobs:
   deploy:
     name: Deploy to Cloud Run
     needs: build
+    if: ${{ secrets.GCP_PROJECT_ID != '' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
