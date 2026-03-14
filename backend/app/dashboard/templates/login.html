@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>{{ title }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center">
+  <div class="w-full max-w-sm px-6">
+    <div class="rounded-xl bg-slate-900 border border-slate-800 p-8">
+      <h1 class="text-2xl font-bold tracking-tight text-center mb-2">Redline AI</h1>
+      <p class="text-sm text-slate-400 text-center mb-6">Dispatch Dashboard Login</p>
+
+      <div id="error-box" class="hidden rounded-lg bg-rose-900/50 border border-rose-700 px-4 py-3 text-rose-200 text-sm mb-4" role="alert">
+        <span id="error-text"></span>
+      </div>
+
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label for="email" class="block text-sm text-slate-300 mb-1">Email</label>
+          <input
+            id="email"
+            name="username"
+            type="email"
+            required
+            autocomplete="email"
+            class="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+            placeholder="dispatcher@agency.gov"
+          />
+        </div>
+        <div>
+          <label for="password" class="block text-sm text-slate-300 mb-1">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password"
+            class="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+            placeholder="Enter password"
+          />
+        </div>
+        <button
+          id="submit-btn"
+          type="submit"
+          class="w-full rounded-lg bg-cyan-600 hover:bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400"
+        >
+          Sign In
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("login-form");
+    const errorBox = document.getElementById("error-box");
+    const errorText = document.getElementById("error-text");
+    const submitBtn = document.getElementById("submit-btn");
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      errorBox.classList.add("hidden");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Signing in...";
+
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      try {
+        const body = new URLSearchParams({ username: email, password: password });
+        const res = await fetch("/api/v1/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: body,
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.detail || "Invalid credentials");
+        }
+
+        const data = await res.json();
+        const token = data.access_token;
+        const refreshToken = data.refresh_token || "";
+
+        // Store tokens
+        sessionStorage.setItem("redline_token", token);
+        if (refreshToken) {
+          sessionStorage.setItem("redline_refresh_token", refreshToken);
+        }
+
+        // Set cookie for server-side dashboard auth check
+        document.cookie = "redline_token=" + encodeURIComponent(token) + "; path=/; SameSite=Strict; Secure";
+
+        // Redirect to dashboard
+        window.location.href = "/dashboard";
+      } catch (err) {
+        errorText.textContent = err.message;
+        errorBox.classList.remove("hidden");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Sign In";
+      }
+    });
+  </script>
+</body>
+</html>

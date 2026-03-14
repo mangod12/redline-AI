@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Redline AI Emergency Dispatch Dashboard" />
+  <title>{{ title }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="flex items-center justify-between mb-6" role="banner">
+      <h1 class="text-2xl font-bold tracking-tight">Dispatcher Dashboard</h1>
+      <div class="flex items-center gap-4">
+        <p id="last-updated" class="text-sm text-slate-400">Connecting...</p>
+        <a href="/dashboard/logout" class="text-xs text-slate-500 hover:text-slate-300 underline">Logout</a>
+      </div>
+    </div>
+
+    <div id="error-banner" class="hidden rounded-lg bg-rose-900/50 border border-rose-700 px-4 py-3 text-rose-200 text-sm mb-4" role="alert">
+      <span id="error-message"></span>
+      <button id="error-dismiss" class="ml-4 underline text-rose-300 hover:text-rose-100" aria-label="Dismiss error">Dismiss</button>
+    </div>
+
+    <div id="loading-overlay" class="flex items-center justify-center py-12">
+      <svg class="animate-spin h-8 w-8 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+      <span class="ml-3 text-slate-400">Loading dispatch data...</span>
+    </div>
+
+    <div id="main-content" class="hidden" role="main">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+        <div class="rounded-xl bg-slate-900 border border-slate-800 p-3" role="status" aria-label="Total live calls">
+          <p class="text-xs text-slate-400" id="label-total">Calls (live)</p>
+          <p id="stat-total" class="text-2xl font-semibold" aria-labelledby="label-total">0</p>
+        </div>
+        <div class="rounded-xl bg-slate-900 border border-slate-800 p-3" role="status" aria-label="Critical severity calls">
+          <p class="text-xs text-slate-400" id="label-critical">Critical</p>
+          <p id="stat-critical" class="text-2xl font-semibold text-rose-400" aria-labelledby="label-critical">0</p>
+        </div>
+        <div class="rounded-xl bg-slate-900 border border-slate-800 p-3" role="status" aria-label="High severity calls">
+          <p class="text-xs text-slate-400" id="label-high">High</p>
+          <p id="stat-high" class="text-2xl font-semibold text-amber-300" aria-labelledby="label-high">0</p>
+        </div>
+        <div class="rounded-xl bg-slate-900 border border-slate-800 p-3" role="status" aria-label="Fallback rate percentage">
+          <p class="text-xs text-slate-400" id="label-fallback">Any Fallback</p>
+          <p id="stat-fallback" class="text-2xl font-semibold text-cyan-300" aria-labelledby="label-fallback">0%</p>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
+        <table class="min-w-full text-sm">
+          <caption class="sr-only">Live emergency calls with severity, intent, and dispatch status</caption>
+          <thead class="bg-slate-800/70 text-slate-300 text-xs uppercase">
+            <tr>
+              <th scope="col" class="px-3 py-3 text-left">Call ID</th>
+              <th scope="col" class="px-3 py-3 text-left">Transcript</th>
+              <th scope="col" class="px-3 py-3 text-left">Intent (conf)</th>
+              <th scope="col" class="px-3 py-3 text-left">Emotion</th>
+              <th scope="col" class="px-3 py-3 text-left">Severity</th>
+              <th scope="col" class="px-3 py-3 text-left">Responder</th>
+              <th scope="col" class="px-3 py-3 text-left">Fallback Flags</th>
+              <th scope="col" class="px-3 py-3 text-left">Latency</th>
+            </tr>
+          </thead>
+          <tbody id="calls-body" class="divide-y divide-slate-800" aria-live="polite">
+            <tr>
+              <td colspan="8" class="px-3 py-8 text-center text-slate-400">Waiting for calls...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- Auth ----
+    const token = sessionStorage.getItem("redline_token");
+    if (!token) { window.location.href = "/dashboard/login"; }
+    const authHeaders = { "Authorization": "Bearer " + token };
+
+    // ---- Error banner ----
+    function showError(msg) {
+      document.getElementById("error-message").textContent = msg;
+      document.getElementById("error-banner").classList.remove("hidden");
+    }
+    function hideError() {
+      document.getElementById("error-banner").classList.add("hidden");
+    }
+    document.getElementById("error-dismiss").addEventListener("click", hideError);
+
+    // ---- Helpers ----
+    function sevClass(level) {
+      if (level === "critical") return "text-rose-400";
+      if (level === "high") return "text-amber-300";
+      if (level === "medium") return "text-yellow-300";
+      return "text-emerald-300";
+    }
+
+    function sevDot(level) {
+      if (level === "critical") return "bg-rose-400";
+      if (level === "high") return "bg-amber-300";
+      if (level === "medium") return "bg-yellow-300";
+      return "bg-emerald-300";
+    }
+
+    function trimText(text, maxLen) {
+      if (!text) return "";
+      return text.length > maxLen ? text.slice(0, maxLen) + "\u2026" : text;
+    }
+
+    function validateCall(c) {
+      return {
+        call_id: String(c.call_id || "N/A"),
+        transcript: String(c.transcript || ""),
+        intent: String(c.intent || "unknown"),
+        intent_confidence: Number(c.intent_confidence) || 0,
+        emotion: String(c.emotion || "neutral"),
+        severity: String(c.severity || "low"),
+        responder: String(c.responder || "unknown"),
+        fallback_used: Boolean(c.fallback_used),
+        intent_fallback: Boolean(c.intent_fallback),
+        emotion_fallback: Boolean(c.emotion_fallback),
+        latency_ms: Number(c.latency_ms) || 0,
+      };
+    }
+
+    function renderRow(c) {
+      const fb = "any=" + (c.fallback_used ? "Y" : "N") +
+        " | intent=" + (c.intent_fallback ? "Y" : "N") +
+        " | emotion=" + (c.emotion_fallback ? "Y" : "N");
+      return `
+        <tr class="hover:bg-slate-800/40 focus:outline-none focus:ring-2 focus:ring-cyan-500" tabindex="0" role="row" aria-label="Call ${c.call_id}, severity ${c.severity}">
+          <td class="px-3 py-2 font-mono text-xs text-slate-300">${c.call_id}</td>
+          <td class="px-3 py-2 text-slate-200 max-w-xl">${trimText(c.transcript, 120)}</td>
+          <td class="px-3 py-2 text-slate-200">${c.intent} (${(c.intent_confidence * 100).toFixed(1)}%)</td>
+          <td class="px-3 py-2 text-slate-200">${c.emotion}</td>
+          <td class="px-3 py-2 font-semibold ${sevClass(c.severity)}">
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full ${sevDot(c.severity)}" aria-hidden="true"></span>
+              ${c.severity.toUpperCase()}
+            </span>
+          </td>
+          <td class="px-3 py-2 text-slate-200">${c.responder}</td>
+          <td class="px-3 py-2 text-slate-300 text-xs">${fb}</td>
+          <td class="px-3 py-2 text-cyan-300">${c.latency_ms.toFixed(0)} ms</td>
+        </tr>
+      `;
+    }
+
+    function renderData(callsList) {
+      document.getElementById("loading-overlay").classList.add("hidden");
+      document.getElementById("main-content").classList.remove("hidden");
+
+      document.getElementById("stat-total").textContent = String(callsList.length);
+      document.getElementById("stat-critical").textContent = String(callsList.filter(c => c.severity === "critical").length);
+      document.getElementById("stat-high").textContent = String(callsList.filter(c => c.severity === "high").length);
+
+      const fallbackRate = callsList.length
+        ? Math.round((callsList.filter(c => c.fallback_used).length / callsList.length) * 100)
+        : 0;
+      document.getElementById("stat-fallback").textContent = fallbackRate + "%";
+
+      const body = document.getElementById("calls-body");
+      if (!callsList.length) {
+        body.innerHTML = '<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">Waiting for calls...</td></tr>';
+        return;
+      }
+      body.innerHTML = callsList.map(c => renderRow(validateCall(c))).join("");
+    }
+
+    // ---- Polling with exponential backoff ----
+    let retryDelay = 2000;
+    const MAX_RETRY_DELAY = 30000;
+    let pollTimer = null;
+
+    async function refresh() {
+      try {
+        const response = await fetch("/api/v1/calls/live?limit=50", { headers: authHeaders });
+        if (response.status === 401) {
+          sessionStorage.removeItem("redline_token");
+          window.location.href = "/dashboard/login";
+          return;
+        }
+        if (!response.ok) throw new Error("HTTP " + response.status);
+
+        const data = await response.json();
+        if (!data || !Array.isArray(data.calls)) throw new Error("Invalid response format");
+
+        retryDelay = 2000;
+        hideError();
+        renderData(data.calls);
+        document.getElementById("last-updated").textContent = "Updated " + new Date().toLocaleTimeString();
+      } catch (error) {
+        retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY);
+        showError("Connection issue: " + error.message + ". Retrying in " + (retryDelay / 1000) + "s\u2026");
+      }
+      pollTimer = setTimeout(refresh, retryDelay);
+    }
+
+    function startPolling() {
+      if (pollTimer) return;
+      refresh();
+    }
+    function stopPolling() {
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    }
+
+    // ---- WebSocket with polling fallback ----
+    let ws = null;
+    let calls = [];
+
+    function connectWebSocket() {
+      if (!token) { startPolling(); return; }
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(proto + "//" + location.host + "/ws/dashboard?token=" + encodeURIComponent(token));
+
+      ws.onopen = function () {
+        stopPolling();
+        fetch("/api/v1/calls/live?limit=50", { headers: authHeaders })
+          .then(r => r.ok ? r.json() : Promise.reject("fetch failed"))
+          .then(data => {
+            calls = data.calls || [];
+            renderData(calls);
+            document.getElementById("last-updated").textContent = "Live (WebSocket)";
+          })
+          .catch(function () { /* will be caught by next poll */ });
+      };
+
+      ws.onmessage = function (event) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event_type === "DASHBOARD_UPDATE" && data.payload) {
+            calls.unshift(data.payload);
+            if (calls.length > 50) calls.pop();
+            renderData(calls);
+            document.getElementById("last-updated").textContent = "Live " + new Date().toLocaleTimeString();
+          }
+        } catch (e) { /* ignore malformed messages */ }
+      };
+
+      ws.onclose = function () {
+        ws = null;
+        startPolling();
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onerror = function () { ws.close(); };
+    }
+
+    connectWebSocket();
+  </script>
+</body>
+</html>
