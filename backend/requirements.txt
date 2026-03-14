@@ -18,7 +18,7 @@ redis~=7.2.0
 # ---- Auth ---------------------------------------------------------------
 python-jose[cryptography]~=3.3.0
 bcrypt~=4.3.0
-python-multipart~=0.0.9
+python-multipart~=0.0.22
 
 # ---- ML / ONNX ----------------------------------------------------------
 onnxruntime~=1.24.0         # CPU inference; swap for onnxruntime-gpu on GPU nodes
