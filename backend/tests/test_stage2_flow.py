@@ -1,6 +1,5 @@
 from types import SimpleNamespace
-from uuid import uuid4
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 import redis.asyncio as redis
