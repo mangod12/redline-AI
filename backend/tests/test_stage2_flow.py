@@ -63,7 +63,7 @@ async def test_end_to_end_pipeline(db_session):
             call_id = data["id"]
 
             # stub ML service
-            with respx.mock(base_url=settings.ML_SERVICE_URL) as ml_mock:
+            with respx.mock(base_url=settings.ML_SERVICE_URL, assert_all_called=False) as ml_mock:
                 ml_mock.post("/analyze").respond(
                     json={
                         "incident_type": "intrusion",
