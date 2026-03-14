@@ -551,17 +551,17 @@ class SeverityEngine:
 
 ## Roadmap & Future Enhancements
 
-### Q2 2024
+### Q2 2026
 - [ ] **Enhanced Multi-Modal Analysis**: Video call support with facial expression analysis
 - [ ] **Advanced Geofencing**: Automatic jurisdiction routing based on caller location
 - [ ] **Predictive Analytics**: Call volume forecasting and resource optimization
 
-### Q3 2024  
+### Q3 2026
 - [ ] **Mobile App**: Native iOS/Android app for field responders
 - [ ] **Integration Marketplace**: Pre-built connectors for popular CAD systems
 - [ ] **Advanced Reporting**: Business intelligence dashboard with custom metrics
 
-### Q4 2024
+### Q4 2026
 - [ ] **Edge Deployment**: Kubernetes operators for multi-region deployment
 - [ ] **AI Improvement**: Self-learning models that improve with usage
 - [ ] **Compliance Module**: HIPAA, SOC2, and government compliance features
@@ -1904,31 +1904,3 @@ This project includes several third-party components:
 - **PostgreSQL**: PostgreSQL License
 - **Redis**: BSD 3-Clause License
 
-## Roadmap & Future Enhancements
-
-### Q2 2024
-- Enhanced multi-modal analysis with video call support
-- Advanced geofencing and jurisdiction routing
-- Predictive analytics for call volume forecasting
-
-### Q3 2024  
-- Native iOS/Android app for field responders
-- Integration marketplace with pre-built CAD connectors
-- Advanced reporting and business intelligence dashboard
-
-### Q4 2024
-- Kubernetes operators for multi-region deployment
-- Self-learning models that improve with usage
-- HIPAA, SOC2, and government compliance features
-
----
-
-**Ready to deploy intelligent emergency response?**
-
-Start with our [Quick Start Guide](#quick-start) or check out the [live demo](https://demo.redlineai.com) to see Redline AI in action.
-
-For enterprise deployments, security reviews, or custom integrations, contact the maintainers.
-
----
-
-*Built with care for emergency responders and the communities they serve.*

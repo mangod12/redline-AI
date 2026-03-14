@@ -10,9 +10,8 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-import tempfile
 import os
-from typing import Optional
+import tempfile
 
 log = logging.getLogger("redline_ai.services.whisper")
 
@@ -36,6 +35,7 @@ class WhisperService:
         already-cached copy.
         """
         import fcntl
+
         import whisper  # type: ignore[import]
 
         log.info("Loading Whisper model '%s' …", self._model_size)
@@ -79,7 +79,7 @@ class WhisperService:
 
     def _sync_transcribe(self, audio_bytes: bytes) -> str:
         suffix = ".wav"
-        tmp_path: Optional[str] = None
+        tmp_path: str | None = None
         try:
             with tempfile.NamedTemporaryFile(
                 suffix=suffix, delete=False

@@ -31,7 +31,6 @@ import pytest
 
 from app.services.dispatch_service import DispatchService, select_responder
 
-
 # ===========================================================================
 # select_responder -- critical severity
 # ===========================================================================

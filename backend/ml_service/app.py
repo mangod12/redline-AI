@@ -1,10 +1,10 @@
+import logging
 import os
 import sys
+
 import torch
-import logging
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel
-from typing import Optional
 
 # Add the root directory to sys.path so we can import from ml.model and ml.utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -43,21 +43,21 @@ class AnalyzeResponse(BaseModel):
     severity_prediction: int
     primary_emotion: str
     confidence: float
-    location_text: Optional[str] = None
+    location_text: str | None = None
 
 @app.post("/analyze-audio")
 async def analyze_audio(file: UploadFile = File(...)):
     """Analyze raw audio for emotion using the CNN model."""
     if not emotion_model:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    
+
     try:
         audio_bytes = await file.read()
         result = predict_emotion(emotion_model, audio_bytes, device=device.type)
-        
+
         if "error" in result:
             raise HTTPException(status_code=500, detail=result["error"])
-            
+
         return result
     except Exception as e:
         logger.error(f"Audio analysis failed: {e}")

@@ -37,7 +37,7 @@ async def cache_call(
         key = _KEY_PREFIX + call_id
         await redis_client.set(key, json.dumps(data, default=str), ex=ttl)
         log.debug("Cached call %s (TTL %ss)", call_id, ttl)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.warning("Failed to cache call %s: %s", call_id, exc)
 
 
@@ -62,6 +62,6 @@ async def get_cached_call(
         if raw is None:
             return None
         return json.loads(raw)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.warning("Failed to read cached call %s: %s", call_id, exc)
         return None

@@ -1,17 +1,17 @@
-from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 import logging
+from uuid import UUID
 
-from app.services import call_service
-from app.services.base import CRUDBase
-from app.services.translation_service import TranslationService
-from app.services.ml_client import MLClient
-from app.services.severity_engine import SeverityEngine
-from app.services.geocoder import Geocoder
-from app.services.dispatch_service import DispatchService
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.events import publish_call_event
 from app.models.severity_report import SeverityReport
+from app.services import call_service
+from app.services.base import CRUDBase
+from app.services.dispatch_service import DispatchService
+from app.services.geocoder import Geocoder
+from app.services.ml_client import MLClient
+from app.services.severity_engine import SeverityEngine
+from app.services.translation_service import TranslationService
 
 logger = logging.getLogger("redline_ai.processing")
 

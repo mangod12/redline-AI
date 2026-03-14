@@ -4,16 +4,17 @@ NOTE: This is the secondary FastAPI app used for the orchestrator/agent pipeline
 The primary app is at app/main.py which handles the Stage-2 REST API.
 """
 
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
-import uvicorn
 
+import uvicorn
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+
+from ..core.memory.redis_client import RedisClient
 from ..core.orchestrator import Orchestrator
 from ..plugins.registry import PluginRegistry
-from ..core.memory.redis_client import RedisClient
 
 # Configure logging
 logging.basicConfig(

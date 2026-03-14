@@ -9,21 +9,18 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.agents.emotion.emotion_agent import (
+    _CONFIDENCE_THRESHOLD,
     EmotionAgent,
     _heuristic_emotion,
-    _neutral_fallback,
     _scores_to_emotion_analysis,
-    _CONFIDENCE_THRESHOLD,
 )
 from app.core.schemas import EmotionType, Transcript
 from app.core.schemas.emotion import EmotionAnalysis
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -35,9 +32,9 @@ def _make_transcript(text: str = "help there is a fire") -> Transcript:
 
 
 def _make_loader(
-    scores: Optional[dict] = None,
+    scores: dict | None = None,
     ready: bool = True,
-    raises: Optional[Exception] = None,
+    raises: Exception | None = None,
     timeout: bool = False,
 ) -> MagicMock:
     loader = MagicMock()
@@ -100,8 +97,7 @@ class TestScoresToEmotionAnalysis:
         assert result.confidence == pytest.approx(0.8)
 
     def test_below_threshold_returns_none(self):
-        scores = {k: 1 / 8 for k in
-                  ["neutral", "calm", "happy", "sad", "angry", "fearful", "disgust", "surprised"]}
+        scores = dict.fromkeys(["neutral", "calm", "happy", "sad", "angry", "fearful", "disgust", "surprised"], 1 / 8)
         result = _scores_to_emotion_analysis(scores, "text")
         assert result is None  # all equal at 0.125 < 0.5 threshold
 
@@ -141,8 +137,7 @@ class TestEmotionAgentFallback:
     @pytest.mark.asyncio
     async def test_low_confidence_triggers_heuristic(self):
         """When all class probs are equal, ML returns None → heuristic used."""
-        equal_scores = {k: 1 / 8 for k in
-                        ["neutral", "calm", "happy", "sad", "angry", "fearful", "disgust", "surprised"]}
+        equal_scores = dict.fromkeys(["neutral", "calm", "happy", "sad", "angry", "fearful", "disgust", "surprised"], 1 / 8)
         loader = _make_loader(scores=equal_scores)
         agent = EmotionAgent(loader=loader)
         result = await agent.process(_make_transcript("help there is a gun"))
@@ -189,14 +184,13 @@ class TestEmotionAgentFailures:
 
     @pytest.mark.asyncio
     async def test_circuit_open_returns_neutral_immediately(self):
-        import pybreaker
         from app.agents.emotion.emotion_agent import _ml_breaker
-    
+
         original_state = _ml_breaker.current_state
         try:
             # Force circuit open using official API
             _ml_breaker.open()
-            
+
             agent = EmotionAgent(loader=_make_loader())
             result = await agent.process(_make_transcript("some text"))
             assert result.primary_emotion == EmotionType.NEUTRAL
@@ -209,6 +203,7 @@ class TestEmotionAgentFailures:
     async def test_sequential_failures_trip_circuit(self):
         """After 3 failures the circuit should open."""
         import pybreaker
+
         from app.agents.emotion.emotion_agent import _ml_breaker
 
         # Reset circuit using official API
@@ -230,10 +225,10 @@ class TestEmotionAgentFailures:
     @pytest.mark.asyncio
     async def test_both_tasks_timeout_returns_neutral(self):
         """Simulate both ML and heuristic exceeding budget."""
-        # Note: _heuristic_emotion is sync in the real code, 
+        # Note: _heuristic_emotion is sync in the real code,
         # but _run_heuristic (which calls it) is async.
         # Patching _heuristic_emotion to be slow.
-        
+
         def _slow_heuristic(*_a, **_kw):
             time.sleep(0.1) # Simulate slow sync block
             return _heuristic_emotion("text")
@@ -245,7 +240,7 @@ class TestEmotionAgentFailures:
              patch("app.agents.emotion.emotion_agent._heuristic_emotion", side_effect=_slow_heuristic):
             # This will trigger Stage 1 timeout and Stage 2 timeout
             result = await agent.process(_make_transcript("text"))
-        
+
         assert isinstance(result, EmotionAnalysis)
         assert result.primary_emotion == EmotionType.NEUTRAL
 
@@ -276,8 +271,7 @@ class TestPrometheusMetrics:
         before = FALLBACK_USAGE_COUNT.labels(trigger="ml_failure")._value.get()
 
         # Equal-confidence → ML result rejected → heuristic fallback
-        equal_scores = {k: 1 / 8 for k in
-                        ["neutral", "calm", "happy", "sad", "angry", "fearful", "disgust", "surprised"]}
+        equal_scores = dict.fromkeys(["neutral", "calm", "happy", "sad", "angry", "fearful", "disgust", "surprised"], 1 / 8)
         loader = _make_loader(scores=equal_scores)
         agent = EmotionAgent(loader=loader)
         await agent.process(_make_transcript("help gun fire"))

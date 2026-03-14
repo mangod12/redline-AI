@@ -15,10 +15,6 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Optional
-
-import numpy as np
-import onnxruntime as ort
 
 from app.core.config import settings
 
@@ -44,10 +40,10 @@ def _export_pytorch_to_onnx(model_pt_path: Path, onnx_path: Path) -> None:
     This runs synchronously and is called at most once (when the .onnx is absent).
     Import is deferred to avoid loading torch when it is not available.
     """
-    import torch  # type: ignore
-
     # Late import to avoid hard dependency when onnx model already present.
     import sys
+
+    import torch  # type: ignore
 
     ml_dir = model_pt_path.parent
     if str(ml_dir) not in sys.path:
@@ -88,11 +84,11 @@ class EmotionModelLoader:
     """
 
     def __init__(self) -> None:
-        self._session: Optional[ort.InferenceSession] = None
+        self._session = None  # ort.InferenceSession once loaded
         self._lock = threading.Lock()
         # Bound workers to 2 to prevent thread starvation on smaller nodes.
         self._executor = ThreadPoolExecutor(
-            max_workers=2, 
+            max_workers=2,
             thread_name_prefix="onnx-inference"
         )
         self._ready = False
@@ -111,6 +107,8 @@ class EmotionModelLoader:
 
         onnx_path = Path(settings.EMOTION_ONNX_PATH)
         pt_path = Path(settings.EMOTION_PT_PATH)
+
+        import onnxruntime as ort
 
         loop = asyncio.get_running_loop()
 
@@ -160,13 +158,15 @@ class EmotionModelLoader:
         return self._ready
 
     async def predict(
-        self, mfcc: "np.ndarray"  # shape (1, 1, 40, 94), dtype float32
+        self, mfcc: np.ndarray  # shape (1, 1, 40, 94), dtype float32
     ) -> dict[str, float]:
         """Run inference with a 3-second timeout.
 
         Returns a dict mapping emotion label → probability.
         Raises asyncio.TimeoutError or RuntimeError on failure.
         """
+        import numpy as np
+
         if not self._ready or self._session is None:
             raise RuntimeError("EmotionModelLoader not initialised")
 

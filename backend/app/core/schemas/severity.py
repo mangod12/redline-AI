@@ -1,8 +1,8 @@
 """Pydantic models for severity assessment data."""
 
-from pydantic import BaseModel, Field
-from typing import Dict, List
 from enum import Enum
+
+from pydantic import BaseModel, Field
 
 
 class SeverityLevel(str, Enum):
@@ -19,6 +19,6 @@ class SeverityAssessment(BaseModel):
 
     level: SeverityLevel = Field(..., description="Assessed severity level")
     score: float = Field(..., ge=0.0, le=1.0, description="Numerical severity score")
-    factors: Dict[str, float] = Field(..., description="Contributing factors and their weights")
+    factors: dict[str, float] = Field(..., description="Contributing factors and their weights")
     reasoning: str = Field(..., description="Explanation of the severity assessment")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in the assessment")

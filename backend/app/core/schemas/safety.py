@@ -1,8 +1,9 @@
 """Pydantic models for safety check data."""
 
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any
 from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class SafetyStatus(str, Enum):
@@ -17,7 +18,7 @@ class SafetyOutput(BaseModel):
     """Model representing safety check results."""
 
     status: SafetyStatus = Field(..., description="Overall safety status")
-    issues: List[str] = Field(default_factory=list, description="Identified safety issues")
-    recommendations: List[str] = Field(default_factory=list, description="Safety recommendations")
+    issues: list[str] = Field(default_factory=list, description="Identified safety issues")
+    recommendations: list[str] = Field(default_factory=list, description="Safety recommendations")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in the safety assessment")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")

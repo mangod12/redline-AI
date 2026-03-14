@@ -11,13 +11,13 @@ Metrics emitted:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import structlog
 from prometheus_client import Counter
 
 from app.agents.base import BaseAgent
-from app.core.schemas import DispatchReport, DispatchAction, SafetyOutput
+from app.core.schemas import DispatchAction, DispatchReport, SafetyOutput
 from app.core.schemas.intent import IntentType
 
 log = structlog.get_logger("redline_ai.agents.dispatch")
@@ -36,7 +36,7 @@ KEYWORD_FALLBACK_ROUTING_COUNT = Counter(
 # ---------------------------------------------------------------------------
 
 # Intent → primary responder
-_INTENT_RESPONDER: Dict[IntentType, str] = {
+_INTENT_RESPONDER: dict[IntentType, str] = {
     IntentType.MEDICAL:        "ambulance",
     IntentType.FIRE:           "fire",
     IntentType.VIOLENT_CRIME:  "police",
@@ -48,7 +48,7 @@ _INTENT_RESPONDER: Dict[IntentType, str] = {
 }
 
 # Intent → DispatchAction
-_INTENT_ACTION: Dict[IntentType, DispatchAction] = {
+_INTENT_ACTION: dict[IntentType, DispatchAction] = {
     IntentType.MEDICAL:        DispatchAction.SEND_EMERGENCY_SERVICES,
     IntentType.FIRE:           DispatchAction.SEND_EMERGENCY_SERVICES,
     IntentType.VIOLENT_CRIME:  DispatchAction.SEND_EMERGENCY_SERVICES,
@@ -60,7 +60,7 @@ _INTENT_ACTION: Dict[IntentType, DispatchAction] = {
 }
 
 # Intent → supporting resources
-_INTENT_RESOURCES: Dict[IntentType, list[str]] = {
+_INTENT_RESOURCES: dict[IntentType, list[str]] = {
     IntentType.MEDICAL:        ["ambulance", "paramedics"],
     IntentType.FIRE:           ["fire department", "ambulance"],
     IntentType.VIOLENT_CRIME:  ["police", "ambulance"],
@@ -130,7 +130,7 @@ def _critical_override(text: str) -> bool:
 class DispatchAgent(BaseAgent):
     """Intent-first dispatch routing with keyword critical override."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         self._config = config or {}
 
     def get_input_schema(self) -> type:

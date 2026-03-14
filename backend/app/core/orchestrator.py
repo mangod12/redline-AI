@@ -2,18 +2,13 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ..agents.base import BaseAgent
-from ..plugins.registry import PluginRegistry
 from ..core.schemas import (
-    Transcript,
-    EmotionAnalysis,
-    ReasoningOutput,
-    SeverityAssessment,
-    SafetyOutput,
     DispatchReport,
 )
+from ..plugins.registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +21,7 @@ class Orchestrator:
 
     def __init__(self, plugin_registry: PluginRegistry):
         self.plugin_registry = plugin_registry
-        self.agents: Dict[str, BaseAgent] = {}
+        self.agents: dict[str, BaseAgent] = {}
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -57,7 +52,7 @@ class Orchestrator:
             else:
                 logger.warning(f"No plugin found for stage: {stage}")
 
-    async def process_emergency_call(self, audio_data: bytes) -> Optional[DispatchReport]:
+    async def process_emergency_call(self, audio_data: bytes) -> DispatchReport | None:
         """Process an emergency call through the entire pipeline.
 
         Args:
@@ -79,7 +74,7 @@ class Orchestrator:
             if not emotion_analysis:
                 logger.error("Emotion stage failed")
                 return None
-            
+
             # Link transcript and emotion for reasoning
             if hasattr(emotion_analysis, 'text_segments'):
                 emotion_analysis.text_segments = [transcript.text]
@@ -138,14 +133,14 @@ class Orchestrator:
             )
             logger.debug(f"Stage {stage_name} completed successfully")
             return result
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"Stage {stage_name} timed out")
             return None
         except Exception as e:
             logger.error(f"Stage {stage_name} failed: {e}")
             return None
 
-    def get_pipeline_status(self) -> Dict[str, bool]:
+    def get_pipeline_status(self) -> dict[str, bool]:
         """Get the status of each pipeline stage.
 
         Returns:

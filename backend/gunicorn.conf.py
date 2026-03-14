@@ -22,6 +22,7 @@ worker_class = "uvicorn.workers.UvicornWorker"
 # 2–4 workers is typical for containerised deployments (CPU resources are
 # constrained to the container).  Tune via GUNICORN_WORKERS env var.
 import os
+
 workers = int(os.getenv("GUNICORN_WORKERS", max(2, multiprocessing.cpu_count())))
 
 worker_connections = 1000

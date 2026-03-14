@@ -4,9 +4,10 @@ Revision ID: 0001_full_initial_schema
 Revises:
 Create Date: 2026-03-13 00:00:00.000000
 """
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0001_full_initial_schema"

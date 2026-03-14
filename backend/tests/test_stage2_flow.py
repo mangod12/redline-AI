@@ -1,20 +1,19 @@
 import asyncio
 import json
-import pytest
 from uuid import UUID
 
-from httpx import AsyncClient
-import respx
+import pytest
 import redis.asyncio as redis
+import respx
+from httpx import AsyncClient
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.models.call import Call
-from app.models.analysis_result import AnalysisResult
-from app.models.severity_report import SeverityReport
-from app.models.dispatch_recommendation import DispatchRecommendation
-
 from app.main import app as fastapi_app
+from app.models.analysis_result import AnalysisResult
+from app.models.call import Call
+from app.models.dispatch_recommendation import DispatchRecommendation
+from app.models.severity_report import SeverityReport
 
 
 @pytest.fixture(scope="session")

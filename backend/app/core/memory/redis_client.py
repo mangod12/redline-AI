@@ -1,9 +1,10 @@
 """Redis client for short-term memory."""
 
-import redis.asyncio as redis
-from typing import Any, Optional, Dict
 import json
 import logging
+from typing import Any
+
+import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class RedisClient:
         self.host = host
         self.port = port
         self.db = db
-        self.client: Optional[redis.Redis] = None
+        self.client: redis.Redis | None = None
 
     async def connect(self) -> None:
         """Connect to Redis."""
@@ -38,7 +39,7 @@ class RedisClient:
             await self.client.close()
             logger.info("Disconnected from Redis")
 
-    async def set(self, key: str, value: Any, expire: Optional[int] = None) -> bool:
+    async def set(self, key: str, value: Any, expire: int | None = None) -> bool:
         """Set a key-value pair.
 
         Args:
@@ -58,7 +59,7 @@ class RedisClient:
             logger.error(f"Failed to set key {key}: {e}")
             return False
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """Get a value by key.
 
         Args:

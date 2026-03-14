@@ -9,16 +9,12 @@ These tests use the authenticated_client fixture which already
 carries a valid Bearer token for the seeded dispatcher user.
 """
 import uuid
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.models.call import Call, CallStatus
 from app.models.tenant import Tenant
-from app.models.user import RoleEnum, User
-from app.core.security import create_access_token, get_password_hash
 from tests.conftest import make_token
-
 
 # ===========================================================================
 # Helper to create a call directly in the DB

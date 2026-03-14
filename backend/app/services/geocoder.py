@@ -1,5 +1,6 @@
-import httpx
 import logging
+
+import httpx
 
 logger = logging.getLogger("redline_ai.geocoder")
 
@@ -29,8 +30,8 @@ class Geocoder:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    self.base_url, 
-                    params=params, 
+                    self.base_url,
+                    params=params,
                     headers=self.headers,
                     timeout=5.0
                 )
@@ -48,10 +49,10 @@ class Geocoder:
                     }
         except Exception as e:
             logger.error(f"Geocoding error for '{text}': {e}")
-            
+
         return {
-            "latitude": 0.0, 
-            "longitude": 0.0, 
-            "confidence": 0.0, 
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "confidence": 0.0,
             "query": text
         }

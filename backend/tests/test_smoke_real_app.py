@@ -16,10 +16,10 @@ Bugs this suite would have caught during development:
 
 from __future__ import annotations
 
-import pytest
-import pytest_asyncio
 from contextlib import asynccontextmanager
 
+import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -58,8 +58,8 @@ async def real_app_client():
     async with _smoke_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    from app.main import app
     from app.core.database import get_db
+    from app.main import app
 
     # Swap lifespan so we don't need Whisper / ONNX / Redis / Postgres
     original_lifespan = app.router.lifespan_context

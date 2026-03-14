@@ -1,9 +1,11 @@
-import pytest
 import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
-from app.agents.intent.intent_agent import IntentAgent, INTENT_LABELS, SOFT_TIMEOUT_S
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from app.agents.intent.intent_agent import INTENT_LABELS, IntentAgent
+from app.core.schemas.intent import IntentType
 from app.core.schemas.transcript import Transcript
-from app.core.schemas.intent import IntentType, IntentAnalysis
 
 
 def _make_transcript(text: str) -> Transcript:

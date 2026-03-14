@@ -1,22 +1,23 @@
 import asyncio
 import io
-import tempfile
-import os
 import logging
-from typing import Any, Dict
-import whisper
-from pydub import AudioSegment
-from ..base import BaseAgent
+import os
+import tempfile
+from typing import Any
+
 from ...core.schemas import Transcript
+from ..base import BaseAgent
 
 logger = logging.getLogger("redline_ai.stt")
 
 class MockSTTAgent(BaseAgent):
     """STT Agent using OpenAI Whisper (Local/Free)."""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: dict[str, Any] = None):
         self.config = config or {}
         # Load whisper model (base is a good balance for student hardware)
+        import whisper
+
         logger.info("Loading Whisper model...")
         self.model = whisper.load_model("base")
         logger.info("Whisper model loaded.")
@@ -35,11 +36,13 @@ class MockSTTAgent(BaseAgent):
         return await loop.run_in_executor(None, self._transcribe, input_data)
 
     def _transcribe(self, audio_bytes: bytes) -> Transcript:
+        from pydub import AudioSegment
+
         try:
-            # Whisper expects a filename or numpy array. 
+            # Whisper expects a filename or numpy array.
             # We'll use a temp file for simplicity with raw bytes.
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-                # Convert raw bytes to wav using pydub if necessary 
+                # Convert raw bytes to wav using pydub if necessary
                 # (Assumes source is something pydub can handle like mp3/wav/ogg)
                 audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
                 audio.export(tmp_file.name, format="wav")
@@ -48,7 +51,7 @@ class MockSTTAgent(BaseAgent):
             try:
                 # Transcribe
                 result = self.model.transcribe(tmp_path)
-                
+
                 return Transcript(
                     text=result.get("text", "").strip(),
                     confidence=0.9, # Whisper doesn't give a simple aggregate confidence easily

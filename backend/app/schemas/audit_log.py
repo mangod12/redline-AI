@@ -1,17 +1,19 @@
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
-from app.schemas.base import TenantBaseSchema, CoreModel
+
+from app.schemas.base import CoreModel, TenantBaseSchema
+
 
 class AuditLogCreate(CoreModel):
-    user_id: Optional[UUID] = None
+    user_id: UUID | None = None
     action: str
-    entity_id: Optional[str] = None
-    entity_type: Optional[str] = None
-    details: Dict[str, Any] = {}
+    entity_id: str | None = None
+    entity_type: str | None = None
+    details: dict[str, Any] = {}
 
 class AuditLogResponse(TenantBaseSchema):
-    user_id: Optional[UUID]
+    user_id: UUID | None
     action: str
-    entity_id: Optional[str]
-    entity_type: Optional[str]
-    details: Dict[str, Any]
+    entity_id: str | None
+    entity_type: str | None
+    details: dict[str, Any]

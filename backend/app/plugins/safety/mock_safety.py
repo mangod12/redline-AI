@@ -1,8 +1,9 @@
 """Mock safety plugin."""
 
-from typing import Any, Dict
-from ..base import BasePlugin
+from typing import Any
+
 from ...agents.safety.mock_safety_agent import MockSafetyAgent
+from ..base import BasePlugin
 
 
 class MockSafetyPlugin(BasePlugin):
@@ -17,7 +18,7 @@ class MockSafetyPlugin(BasePlugin):
     async def shutdown(self) -> None:
         pass
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         return {"type": "safety", "mock": True}
 
     async def create_agent(self) -> MockSafetyAgent:

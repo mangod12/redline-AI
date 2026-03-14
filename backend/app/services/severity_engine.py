@@ -1,5 +1,6 @@
 from typing import Literal
 
+
 class SeverityEngine:
     """Computes severity score based on panic, keyword and incident priority."""
 

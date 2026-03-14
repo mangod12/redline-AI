@@ -21,7 +21,6 @@ from app.agents.severity.severity_agent import (
 from app.core.schemas import ReasoningOutput, SeverityLevel
 from app.core.schemas.severity import SeverityAssessment
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

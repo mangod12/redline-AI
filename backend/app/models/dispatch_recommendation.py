@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, Float
+from sqlalchemy import Column, Float, ForeignKey, String
 from sqlalchemy.orm import relationship
 
 from app.models.base import TenantModel

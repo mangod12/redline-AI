@@ -7,13 +7,13 @@ Tests are written against the *current* public API:
 """
 
 import pytest
+
 from app.agents.severity.severity_agent import (
     SeverityAgent,
     _keyword_score,
     _severity_level,
 )
-from app.core.schemas import ReasoningOutput, SeverityLevel, SeverityAssessment
-
+from app.core.schemas import ReasoningOutput, SeverityAssessment, SeverityLevel
 
 # ---------------------------------------------------------------------------
 # Helper

@@ -1,8 +1,9 @@
 """Tests for DispatchAgent routing logic."""
+
 import pytest
-from unittest.mock import MagicMock
+
 from app.agents.dispatch.dispatch_agent import DispatchAgent
-from app.core.schemas import SafetyOutput, SafetyStatus, DispatchAction
+from app.core.schemas import DispatchAction, SafetyOutput, SafetyStatus
 from app.core.schemas.intent import IntentType
 
 

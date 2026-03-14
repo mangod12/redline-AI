@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Union
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
+import bcrypt
 import structlog
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import bcrypt
 from jose import JWTError, jwt
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -23,12 +23,12 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def create_access_token(
-    subject: Union[str, Any], tenant_id: str, role: str, expires_delta: timedelta | None = None
+    subject: str | Any, tenant_id: str, role: str, expires_delta: timedelta | None = None
 ) -> str:
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {
         "exp": expire,
         "sub": str(subject),
@@ -40,9 +40,9 @@ def create_access_token(
 
 
 def create_refresh_token(
-    subject: Union[str, Any], tenant_id: str, role: str,
+    subject: str | Any, tenant_id: str, role: str,
 ) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
     to_encode = {
         "exp": expire,
         "sub": str(subject),

@@ -6,12 +6,6 @@ import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Optional
-
-import numpy as np
-import onnxruntime as ort
-import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from app.core.config import settings
 
@@ -23,7 +17,7 @@ class IntentModelLoader:
 
     def __init__(self) -> None:
         self._tokenizer = None
-        self._session: Optional[ort.InferenceSession] = None
+        self._session = None  # ort.InferenceSession once loaded
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="intent-onnx")
         self._init_lock = asyncio.Lock()
         self._ready = False
@@ -42,11 +36,14 @@ class IntentModelLoader:
             log.info("Intent ONNX loader initialized")
 
     def _initialize_sync(self) -> None:
+        import onnxruntime as ort
+        from transformers import AutoTokenizer
+
         self._onnx_path.parent.mkdir(parents=True, exist_ok=True)
         if not self._onnx_path.exists():
             # Use a lock file so only one worker exports; others wait.
             lock_path = self._onnx_path.with_suffix(".lock")
-            import filelock  # noqa: delay import
+            import filelock
 
             lock = filelock.FileLock(str(lock_path), timeout=600)
             try:
@@ -70,6 +67,9 @@ class IntentModelLoader:
         self._input_names = {inp.name for inp in self._session.get_inputs()}
 
     def _export_default_onnx(self) -> None:
+        import torch
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
         log.warning("Intent ONNX model not found at %s. Exporting default DistilBERT.", self._onnx_path)
         model = AutoModelForSequenceClassification.from_pretrained(settings.INTENT_MODEL_NAME)
         model.eval()
@@ -112,6 +112,8 @@ class IntentModelLoader:
         return await loop.run_in_executor(self._executor, self._predict_sync, text)
 
     def _predict_sync(self, text: str) -> np.ndarray:
+        import numpy as np
+
         assert self._tokenizer is not None
         assert self._session is not None
 
