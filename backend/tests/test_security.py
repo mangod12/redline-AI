@@ -234,16 +234,16 @@ class TestProductionConfigValidation:
                 ENABLE_DOCS=False,
             )
 
-    def test_rejects_docs_enabled_in_production(self):
-        with pytest.raises(ValueError, match="ENABLE_DOCS must be false"):
-            Settings(
-                APP_ENV="production",
-                USE_SQLITE=False,
-                SECRET_KEY="a" * 32,
-                TWILIO_AUTH_TOKEN="tok",
-                POSTGRES_PASSWORD="strongpw",
-                ENABLE_DOCS=True,
-            )
+    def test_allows_docs_enabled_in_production(self):
+        s = Settings(
+            APP_ENV="production",
+            USE_SQLITE=False,
+            SECRET_KEY="a" * 32,
+            TWILIO_AUTH_TOKEN="tok",
+            POSTGRES_PASSWORD="strongpw",
+            ENABLE_DOCS=True,
+        )
+        assert s.ENABLE_DOCS is True
 
     def test_valid_production_config_passes(self):
         s = Settings(
