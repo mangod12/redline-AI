@@ -37,7 +37,7 @@ prometheus-client~=0.24.0
 starlette-prometheus~=0.10.0
 
 # ---- Resilience ---------------------------------------------------------
-pybreaker~=1.4.0
+pybreaker~=1.4.1
 filelock~=3.24.0
 
 # ---- Security -----------------------------------------------------------
