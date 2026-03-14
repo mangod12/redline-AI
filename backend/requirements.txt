@@ -22,7 +22,7 @@ python-multipart~=0.0.9
 
 # ---- ML / ONNX ----------------------------------------------------------
 onnxruntime~=1.24.0         # CPU inference; swap for onnxruntime-gpu on GPU nodes
-numpy~=2.4.0
+numpy~=2.4.3
 transformers~=4.57.0
 optimum[onnxruntime]~=2.1.0
 tokenizers~=0.22.0
