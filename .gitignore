@@ -1,0 +1,21 @@
+node_modules/
+.env
+.env.docker.local
+.env.production
+coverage/
+*.log
+*.pyc
+__pycache__/
+dist/
+# Ignore datasets (large files, download separately)
+datasets/*.csv
+
+# Ignore model weights (download or train separately)
+*.safetensors
+*.onnx
+
+# Postgres backups
+backups/
+
+# Gunicorn artifacts
+*.ctl

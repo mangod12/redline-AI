@@ -1,0 +1,110 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Redline AI Alerts
+    folder: Redline AI
+    interval: 1m
+    rules:
+      # 1. High Error Rate
+      - uid: high-error-rate
+        title: High Error Rate
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: >-
+                sum(rate(starlette_responses_total{status_code=~"5.."}[5m]))
+                / sum(rate(starlette_responses_total[5m])) > 0.05
+              refId: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+        for: 5m
+        annotations:
+          summary: "5xx error rate has exceeded 5% for the last 5 minutes."
+          description: >-
+            The ratio of 5xx responses to total responses is above the 5%
+            threshold. Investigate backend logs for errors.
+        labels:
+          severity: critical
+
+      # 2. Backend Down
+      - uid: backend-down
+        title: Backend Down
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'up{job="redline_ai"} == 0'
+              refId: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+        for: 1m
+        annotations:
+          summary: "The redline_ai backend target is down."
+          description: >-
+            Prometheus has been unable to scrape the redline_ai target for
+            at least 1 minute. The backend service may have crashed or
+            become unreachable.
+        labels:
+          severity: critical
+
+      # 3. High P95 Latency
+      - uid: high-p95-latency
+        title: High P95 Latency
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: >-
+                histogram_quantile(0.95,
+                sum(rate(starlette_requests_processing_time_seconds_bucket[5m])) by (le))
+                > 2
+              refId: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+        for: 5m
+        annotations:
+          summary: "P95 request latency has exceeded 2 seconds for the last 5 minutes."
+          description: >-
+            The 95th-percentile request processing time is above 2 seconds.
+            This may indicate resource contention, slow downstream services,
+            or an increase in expensive queries.
+        labels:
+          severity: warning
+
+      # 4. High Memory Usage
+      - uid: high-memory-usage
+        title: High Memory Usage
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'process_resident_memory_bytes{job="redline_ai"} > 1.5e9'
+              refId: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+        for: 5m
+        annotations:
+          summary: "Process memory usage has exceeded 1.5 GB."
+          description: >-
+            The resident memory of the redline_ai process is above 1.5 GB.
+            This could indicate a memory leak or unexpectedly large workloads.
+        labels:
+          severity: warning
