@@ -117,11 +117,11 @@ jobs:
           region: ${{ env.REGION }}
           flags: |
             --port=8000
-            --memory=2Gi
+            --memory=4Gi
             --cpu=2
             --min-instances=0
             --max-instances=10
-            --timeout=300
+            --timeout=600
             --allow-unauthenticated
             --add-cloudsql-instances=${{ secrets.GCP_PROJECT_ID }}:${{ env.REGION }}:redline-db
           env_vars: |
@@ -129,7 +129,9 @@ jobs:
             USE_SQLITE=false
             ENABLE_DOCS=false
             CLOUD_SQL_CONNECTION_NAME=${{ secrets.GCP_PROJECT_ID }}:${{ env.REGION }}:redline-db
-            ALLOWED_ORIGIN=https://redline-ai-dlfm5adesa-uc.a.run.app
+            ALLOWED_ORIGIN=https://redline-ai-359883234654.us-central1.run.app
+            WHISPER_MODEL_SIZE=tiny
+            GUNICORN_WORKERS=1
           secrets: |
             SECRET_KEY=SECRET_KEY:latest
             TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest
