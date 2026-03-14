@@ -12,9 +12,10 @@ from sqlalchemy import select
 
 from app.api.deps import get_current_user, get_tenant_id
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, engine
 from app.core.security import require_jwt_token
 from app.main import app as fastapi_app
+from app.models.base import Base
 from app.models.analysis_result import AnalysisResult
 from app.models.call import Call
 from app.models.dispatch_recommendation import DispatchRecommendation
@@ -28,6 +29,8 @@ def anyio_backend():
 
 @pytest.fixture
 async def db_session():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     async with AsyncSessionLocal() as session:
         yield session
 
