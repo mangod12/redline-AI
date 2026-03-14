@@ -1,5 +1,7 @@
 # Redline AI - Intelligent Emergency Response Platform
 
+[![CI](https://github.com/mangod12/redline-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/mangod12/redline-AI/actions/workflows/ci.yml)
+[![Deploy](https://github.com/mangod12/redline-AI/actions/workflows/deploy-gcp.yml/badge.svg)](https://github.com/mangod12/redline-AI/actions/workflows/deploy-gcp.yml)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 [![Python](https://img.shields.io/badge/python-v3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-009688.svg)](https://fastapi.tiangolo.com)
