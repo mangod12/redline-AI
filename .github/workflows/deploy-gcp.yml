@@ -111,6 +111,7 @@ jobs:
             --min-instances=0
             --max-instances=10
             --timeout=300
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
             --allow-unauthenticated
           env_vars: |
             APP_ENV=production
