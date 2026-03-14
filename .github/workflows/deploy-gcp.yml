@@ -16,10 +16,31 @@ env:
   ARTIFACT_REGISTRY: ${{ vars.GCP_REGION || 'us-central1' }}-docker.pkg.dev
 
 jobs:
+  preflight:
+    name: Validate Deploy Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_enabled: ${{ steps.check.outputs.deploy_enabled }}
+    steps:
+      - id: check
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$GCP_PROJECT_ID" ] && [ -n "$GCP_WORKLOAD_IDENTITY_PROVIDER" ] && [ -n "$GCP_SERVICE_ACCOUNT" ]; then
+            echo "deploy_enabled=true" >> "$GITHUB_OUTPUT"
+            echo "GCP deploy secrets are configured." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "deploy_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping deploy: missing one or more required secrets (GCP_PROJECT_ID, GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   # ── Build & Push ──────────────────────────────────────────────────
   build:
     name: Build & Push to Artifact Registry
-    if: ${{ secrets.GCP_PROJECT_ID != '' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
+    needs: preflight
+    if: ${{ needs.preflight.outputs.deploy_enabled == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,8 +85,8 @@ jobs:
   # ── Deploy ────────────────────────────────────────────────────────
   deploy:
     name: Deploy to Cloud Run
-    needs: build
-    if: ${{ secrets.GCP_PROJECT_ID != '' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' }}
+    needs: [preflight, build]
+    if: ${{ needs.preflight.outputs.deploy_enabled == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
