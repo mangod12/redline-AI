@@ -119,6 +119,7 @@ jobs:
             ENABLE_DOCS=false
           secrets: |
             SECRET_KEY=SECRET_KEY:latest
+            TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest
             POSTGRES_PASSWORD=POSTGRES_PASSWORD:latest
             POSTGRES_USER=POSTGRES_USER:latest
             POSTGRES_SERVER=POSTGRES_SERVER:latest
