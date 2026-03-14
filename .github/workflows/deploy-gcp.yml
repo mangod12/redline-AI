@@ -102,7 +102,7 @@ jobs:
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
-          image: ${{ needs.build.outputs.image }}
+          image: ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/redline-ai/${{ env.SERVICE_NAME }}:latest
           region: ${{ env.REGION }}
           flags: |
             --port=8000
