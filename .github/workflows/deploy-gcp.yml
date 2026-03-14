@@ -1,0 +1,116 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  SERVICE_NAME: redline-ai
+  ARTIFACT_REGISTRY: ${{ vars.GCP_REGION || 'us-central1' }}-docker.pkg.dev
+
+jobs:
+  # ── Build & Push ──────────────────────────────────────────────────
+  build:
+    name: Build & Push to Artifact Registry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write    # Required for Workload Identity Federation
+
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - id: meta
+        name: Build image tag
+        run: |
+          IMAGE="${ARTIFACT_REGISTRY}/${PROJECT_ID}/redline-ai/${SERVICE_NAME}:${GITHUB_SHA::8}"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: backend
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/redline-ai/${{ env.SERVICE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Deploy ────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Cloud Run
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          image: ${{ needs.build.outputs.image }}
+          region: ${{ env.REGION }}
+          flags: |
+            --port=8000
+            --memory=2Gi
+            --cpu=2
+            --min-instances=0
+            --max-instances=10
+            --timeout=300
+            --allow-unauthenticated
+          env_vars: |
+            APP_ENV=production
+            USE_SQLITE=false
+            ENABLE_DOCS=false
+          secrets: |
+            SECRET_KEY=SECRET_KEY:latest
+            POSTGRES_PASSWORD=POSTGRES_PASSWORD:latest
+            POSTGRES_USER=POSTGRES_USER:latest
+            POSTGRES_SERVER=POSTGRES_SERVER:latest
+            POSTGRES_PORT=POSTGRES_PORT:latest
+            POSTGRES_DB=POSTGRES_DB:latest
+            REDIS_URL=REDIS_URL:latest
+
+      - name: Show deployed URL
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)')
+          echo "## Deployed to Cloud Run" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${URL}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ needs.build.outputs.image }}\`" >> $GITHUB_STEP_SUMMARY

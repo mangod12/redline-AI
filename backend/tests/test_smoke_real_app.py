@@ -155,6 +155,14 @@ class TestRouteWiring:
         assert "text/html" in resp.headers.get("content-type", "")
 
     @pytest.mark.asyncio
+    async def test_demo_page_accessible(self, real_app_client):
+        """GET /demo returns 200 with HTML (public, no auth required)."""
+        resp = await real_app_client.get("/demo")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+        assert "Emergency Alert System Demo" in resp.text
+
+    @pytest.mark.asyncio
     async def test_health_endpoint(self, real_app_client):
         """GET /health returns 200 with a status field."""
         resp = await real_app_client.get("/health")
