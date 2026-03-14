@@ -124,18 +124,12 @@ jobs:
             --timeout=300
             --allow-unauthenticated
           env_vars: |
-            APP_ENV=production
-            USE_SQLITE=false
-            ENABLE_DOCS=false
+            APP_ENV=staging
+            USE_SQLITE=true
+            ENABLE_DOCS=true
           secrets: |
             SECRET_KEY=SECRET_KEY:latest
             TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest
-            POSTGRES_PASSWORD=POSTGRES_PASSWORD:latest
-            POSTGRES_USER=POSTGRES_USER:latest
-            POSTGRES_SERVER=POSTGRES_SERVER:latest
-            POSTGRES_PORT=POSTGRES_PORT:latest
-            POSTGRES_DB=POSTGRES_DB:latest
-            REDIS_URL=REDIS_URL:latest
 
       - name: Show deployed URL
         run: |
