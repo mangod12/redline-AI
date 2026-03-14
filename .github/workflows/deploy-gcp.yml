@@ -1,7 +1,10 @@
 name: Deploy to Google Cloud Run
 
 on:
-  push:
+  # Auto-deploy after CI passes on main
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -19,6 +22,8 @@ jobs:
   preflight:
     name: Validate Deploy Configuration
     runs-on: ubuntu-latest
+    # Skip if CI workflow failed (only applies to workflow_run trigger)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
       deploy_enabled: ${{ steps.check.outputs.deploy_enabled }}
     steps:
@@ -30,10 +35,10 @@ jobs:
         run: |
           if [ -n "$GCP_PROJECT_ID" ] && [ -n "$GCP_WORKLOAD_IDENTITY_PROVIDER" ] && [ -n "$GCP_SERVICE_ACCOUNT" ]; then
             echo "deploy_enabled=true" >> "$GITHUB_OUTPUT"
-            echo "GCP deploy secrets are configured." >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ GCP deploy secrets are configured." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "deploy_enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping deploy: missing one or more required secrets (GCP_PROJECT_ID, GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT)." >> "$GITHUB_STEP_SUMMARY"
+            echo "⏭️ Skipping deploy: missing one or more required secrets (GCP_PROJECT_ID, GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT)." >> "$GITHUB_STEP_SUMMARY"
           fi
 
   # ── Build & Push ──────────────────────────────────────────────────
@@ -44,13 +49,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    # Required for Workload Identity Federation
+      id-token: write
 
     outputs:
       image: ${{ steps.meta.outputs.image }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - id: auth
         name: Authenticate to Google Cloud
@@ -68,7 +75,8 @@ jobs:
       - id: meta
         name: Build image tag
         run: |
-          IMAGE="${ARTIFACT_REGISTRY}/${PROJECT_ID}/redline-ai/${SERVICE_NAME}:${GITHUB_SHA::8}"
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          IMAGE="${ARTIFACT_REGISTRY}/${PROJECT_ID}/redline-ai/${SERVICE_NAME}:${SHA::8}"
           echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker image
@@ -98,6 +106,9 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -111,7 +122,6 @@ jobs:
             --min-instances=0
             --max-instances=10
             --timeout=300
-            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
             --allow-unauthenticated
           env_vars: |
             APP_ENV=production

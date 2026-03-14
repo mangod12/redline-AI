@@ -108,6 +108,13 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --role="roles/secretmanager.secretAccessor" \
   --condition=None || true
 
+# Grant Service Account User role (needed to deploy Cloud Run with this SA)
+echo "  Granting Service Account User role..."
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
+  --role="roles/iam.serviceAccountUser" \
+  --condition=None || true
+
 # Allow GitHub to impersonate this service account
 echo "  Setting up Workload Identity binding for GitHub..."
 gcloud iam service-accounts add-iam-policy-binding "$SERVICE_ACCOUNT_EMAIL" \
@@ -147,6 +154,18 @@ echo "redline_db" | gcloud secrets create POSTGRES_DB --data-file=- --project=$P
 
 echo "redis://localhost:6379" | gcloud secrets create REDIS_URL --data-file=- --project=$PROJECT_ID 2>/dev/null || \
   echo "redis://localhost:6379" | gcloud secrets versions add REDIS_URL --data-file=- --project=$PROJECT_ID
+
+echo "placeholder" | gcloud secrets create TWILIO_AUTH_TOKEN --data-file=- --project=$PROJECT_ID 2>/dev/null || \
+  echo "placeholder" | gcloud secrets versions add TWILIO_AUTH_TOKEN --data-file=- --project=$PROJECT_ID
+
+# Grant default Compute Engine SA access to secrets (Cloud Run runtime)
+echo "  Granting default compute SA secret access..."
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+DEFAULT_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$DEFAULT_SA" \
+  --role="roles/secretmanager.secretAccessor" \
+  --condition=None || true
 
 echo "✓ Secrets created"
 echo ""
