@@ -123,13 +123,19 @@ jobs:
             --max-instances=10
             --timeout=300
             --allow-unauthenticated
+            --add-cloudsql-instances=${{ secrets.GCP_PROJECT_ID }}:${{ env.REGION }}:redline-db
           env_vars: |
-            APP_ENV=staging
-            USE_SQLITE=true
-            ENABLE_DOCS=true
+            APP_ENV=production
+            USE_SQLITE=false
+            ENABLE_DOCS=false
+            CLOUD_SQL_CONNECTION_NAME=${{ secrets.GCP_PROJECT_ID }}:${{ env.REGION }}:redline-db
+            ALLOWED_ORIGIN=https://redline-ai-dlfm5adesa-uc.a.run.app
           secrets: |
             SECRET_KEY=SECRET_KEY:latest
             TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest
+            POSTGRES_PASSWORD=POSTGRES_PASSWORD:latest
+            POSTGRES_USER=POSTGRES_USER:latest
+            POSTGRES_DB=POSTGRES_DB:latest
 
       - name: Show deployed URL
         run: |

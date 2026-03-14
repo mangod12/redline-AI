@@ -25,11 +25,17 @@ class Settings(BaseSettings):
     POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "localhost")
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "redline_db")
+    # Cloud SQL unix socket path (e.g. /cloudsql/project:region:instance)
+    CLOUD_SQL_CONNECTION_NAME: str = os.getenv("CLOUD_SQL_CONNECTION_NAME", "")
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         if self.USE_SQLITE:
             return "sqlite+aiosqlite:///./redline.db"
+        if self.CLOUD_SQL_CONNECTION_NAME:
+            # Cloud Run connects via unix socket through Cloud SQL Auth Proxy
+            socket_path = f"/cloudsql/{self.CLOUD_SQL_CONNECTION_NAME}"
+            return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@/{self.POSTGRES_DB}?host={socket_path}"
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     # Redis
@@ -48,7 +54,13 @@ class Settings(BaseSettings):
     WHISPER_MODEL_SIZE: str = "small"
 
     # ---- CORS -----------------------------------------------------------
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: list[str] = [
+        origin for origin in [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            os.getenv("ALLOWED_ORIGIN", ""),
+        ] if origin
+    ]
 
     # ---- Docs -----------------------------------------------------------
     ENABLE_DOCS: bool = os.getenv("ENABLE_DOCS", "true").lower() == "true"
