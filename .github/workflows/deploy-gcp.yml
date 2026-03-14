@@ -127,7 +127,7 @@ jobs:
           env_vars: |
             APP_ENV=production
             USE_SQLITE=false
-            ENABLE_DOCS=false
+            ENABLE_DOCS=true
             CLOUD_SQL_CONNECTION_NAME=${{ secrets.GCP_PROJECT_ID }}:${{ env.REGION }}:redline-db
             ALLOWED_ORIGIN=https://redline-ai-359883234654.us-central1.run.app
             WHISPER_MODEL_SIZE=tiny

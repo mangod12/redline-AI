@@ -77,8 +77,7 @@ class Settings(BaseSettings):
                 raise ValueError("SECRET_KEY must be at least 32 characters in production")
             if not self.TWILIO_AUTH_TOKEN:
                 raise ValueError("TWILIO_AUTH_TOKEN must be set in production")
-            if self.ENABLE_DOCS:
-                raise ValueError("ENABLE_DOCS must be false in production")
+            # Docs can be enabled in production via ENABLE_DOCS env var
         return self
 
     model_config = SettingsConfigDict(
