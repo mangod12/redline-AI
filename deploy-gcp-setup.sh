@@ -21,7 +21,7 @@ echo ""
 echo "📡 STEP 1: Enabling required GCP APIs..."
 gcloud services enable compute.googleapis.com \
   artifactregistry.googleapis.com \
-  cloudrun.googleapis.com \
+  run.googleapis.com \
   iamcredentials.googleapis.com \
   sts.googleapis.com \
   serviceusage.googleapis.com \
@@ -117,10 +117,11 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 
 # Allow GitHub to impersonate this service account
 echo "  Setting up Workload Identity binding for GitHub..."
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
 gcloud iam service-accounts add-iam-policy-binding "$SERVICE_ACCOUNT_EMAIL" \
   --project=$PROJECT_ID \
   --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/projects/$PROJECT_ID/locations/global/workloadIdentityPools/github-pool/attribute.repository/${GITHUB_OWNER}/${GITHUB_REPO}" || true
+  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-pool/attribute.repository/${GITHUB_OWNER}/${GITHUB_REPO}" || true
 
 echo "✓ Service account configured"
 echo ""
@@ -131,7 +132,7 @@ echo ""
 echo "🔒 STEP 5: Creating secrets in GCP Secret Manager..."
 
 # Generate a random secret key
-SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null || python3 -c "import secrets; print(secrets.token_urlsafe(32))")
 
 # Create or update secrets
 echo "$SECRET_KEY" | gcloud secrets create SECRET_KEY --data-file=- --project=$PROJECT_ID 2>/dev/null || \
