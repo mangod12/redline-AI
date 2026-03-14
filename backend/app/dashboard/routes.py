@@ -18,6 +18,16 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
+@router.get("/demo", response_class=HTMLResponse, include_in_schema=False)
+async def demo_page(request: Request) -> HTMLResponse:
+    """Serve the interactive emergency alert demo page (public)."""
+    return templates.TemplateResponse(
+        request=request,
+        name="demo.html",
+        context={"title": "Redline AI - Demo"},
+    )
+
+
 @router.get("/dashboard/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_page(request: Request) -> HTMLResponse:
     """Serve the dashboard login page."""

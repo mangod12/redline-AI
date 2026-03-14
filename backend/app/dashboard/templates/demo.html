@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>{{ title }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .typing-dot { animation: pulse-dot 1.2s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: .2s; }
+    .typing-dot:nth-child(3) { animation-delay: .4s; }
+    .chat-scroll::-webkit-scrollbar { width: 6px; }
+    .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+    .chat-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight">Redline AI</h1>
+          <p class="text-xs text-slate-400">Emergency Alert System Demo</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="status-badge" class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-emerald-900/50 border border-emerald-700 text-emerald-300">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          System Online
+        </span>
+        <a href="/dashboard" class="text-xs text-slate-400 hover:text-cyan-400 transition-colors">Dashboard</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Chat Area -->
+  <main class="flex-1 max-w-4xl w-full mx-auto flex flex-col">
+    <div id="chat-container" class="flex-1 overflow-y-auto chat-scroll px-4 py-6 space-y-4">
+
+      <!-- Welcome message -->
+      <div class="flex gap-3">
+        <div class="w-8 h-8 rounded-full bg-cyan-600 flex-shrink-0 flex items-center justify-center mt-1">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+        </div>
+        <div class="rounded-xl bg-slate-900 border border-slate-800 p-4 max-w-2xl">
+          <p class="text-sm text-slate-200 mb-3">Welcome to the <strong>Redline AI Emergency Alert System</strong> demo. Type an emergency scenario below and watch the AI pipeline classify it in real-time.</p>
+          <p class="text-xs text-slate-400 mb-2">The system will analyze your message for:</p>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="flex items-center gap-2 text-cyan-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+              Intent Classification
+            </div>
+            <div class="flex items-center gap-2 text-violet-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Emotion Detection
+            </div>
+            <div class="flex items-center gap-2 text-amber-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              Severity Assessment
+            </div>
+            <div class="flex items-center gap-2 text-emerald-300">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              Dispatch Routing
+            </div>
+          </div>
+          <div class="mt-3 pt-3 border-t border-slate-700">
+            <p class="text-xs text-slate-500">Try: <button onclick="fillExample(this)" class="text-cyan-400 hover:underline cursor-pointer">"Someone collapsed and is not breathing at the mall"</button></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="border-t border-slate-800 bg-slate-900/50 backdrop-blur-sm px-4 py-4">
+      <form id="chat-form" class="max-w-4xl mx-auto flex gap-3">
+        <div class="flex-1 relative">
+          <input
+            id="message-input"
+            type="text"
+            placeholder="Describe an emergency scenario..."
+            autocomplete="off"
+            class="w-full rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 pr-12 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+          />
+          <span id="char-count" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">0</span>
+        </div>
+        <button
+          id="send-btn"
+          type="submit"
+          class="rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed px-5 py-3 text-sm font-semibold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          Analyze
+        </button>
+      </form>
+      <div class="max-w-4xl mx-auto mt-2 flex flex-wrap gap-2">
+        <button onclick="fillExample(this)" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:border-cyan-600 hover:text-cyan-300 transition-colors">
+          Building on fire, people trapped
+        </button>
+        <button onclick="fillExample(this)" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:border-cyan-600 hover:text-cyan-300 transition-colors">
+          Man with a knife threatening people
+        </button>
+        <button onclick="fillExample(this)" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:border-cyan-600 hover:text-cyan-300 transition-colors">
+          Car accident, driver unconscious
+        </button>
+        <button onclick="fillExample(this)" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:border-cyan-600 hover:text-cyan-300 transition-colors">
+          Strong gas smell in apartment
+        </button>
+        <button onclick="fillExample(this)" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:border-cyan-600 hover:text-cyan-300 transition-colors">
+          Loud party keeping neighbors awake
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const chatContainer = document.getElementById("chat-container");
+    const chatForm = document.getElementById("chat-form");
+    const messageInput = document.getElementById("message-input");
+    const sendBtn = document.getElementById("send-btn");
+    const charCount = document.getElementById("char-count");
+    let processing = false;
+
+    messageInput.addEventListener("input", () => {
+      charCount.textContent = messageInput.value.length;
+    });
+
+    function fillExample(el) {
+      messageInput.value = el.textContent.trim().replace(/^"|"$/g, "");
+      charCount.textContent = messageInput.value.length;
+      messageInput.focus();
+    }
+
+    function scrollToBottom() {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function severityColor(severity) {
+      const s = severity.toLowerCase();
+      if (s === "critical") return { bg: "bg-rose-900/40", border: "border-rose-700", text: "text-rose-300", badge: "bg-rose-600" };
+      if (s === "high") return { bg: "bg-orange-900/40", border: "border-orange-700", text: "text-orange-300", badge: "bg-orange-600" };
+      if (s === "medium") return { bg: "bg-amber-900/40", border: "border-amber-700", text: "text-amber-300", badge: "bg-amber-600" };
+      return { bg: "bg-slate-800/40", border: "border-slate-700", text: "text-slate-300", badge: "bg-slate-600" };
+    }
+
+    function addUserMessage(text) {
+      const div = document.createElement("div");
+      div.className = "flex gap-3 justify-end";
+      div.innerHTML = `
+        <div class="rounded-xl bg-cyan-900/30 border border-cyan-800 p-4 max-w-2xl">
+          <p class="text-sm text-slate-100">${escapeHtml(text)}</p>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-slate-700 flex-shrink-0 flex items-center justify-center mt-1">
+          <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+        </div>
+      `;
+      chatContainer.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addTypingIndicator() {
+      const div = document.createElement("div");
+      div.id = "typing-indicator";
+      div.className = "flex gap-3";
+      div.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-cyan-600 flex-shrink-0 flex items-center justify-center mt-1">
+          <svg class="w-4 h-4 text-white animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div class="rounded-xl bg-slate-900 border border-slate-800 p-4">
+          <div class="flex items-center gap-1.5">
+            <span class="typing-dot w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span class="typing-dot w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span class="typing-dot w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span class="text-xs text-slate-400 ml-2">Analyzing emergency...</span>
+          </div>
+        </div>
+      `;
+      chatContainer.appendChild(div);
+      scrollToBottom();
+    }
+
+    function removeTypingIndicator() {
+      const el = document.getElementById("typing-indicator");
+      if (el) el.remove();
+    }
+
+    function addResultMessage(data) {
+      const sc = severityColor(data.severity);
+      const div = document.createElement("div");
+      div.className = "flex gap-3";
+      div.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-cyan-600 flex-shrink-0 flex items-center justify-center mt-1">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+        </div>
+        <div class="rounded-xl ${sc.bg} border ${sc.border} p-4 max-w-2xl w-full">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-semibold uppercase tracking-wider ${sc.text}">Emergency Analysis</span>
+            <span class="text-xs px-2 py-0.5 rounded-full ${sc.badge} text-white font-bold uppercase">${escapeHtml(data.severity)}</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div class="rounded-lg bg-slate-900/60 p-3">
+              <div class="text-xs text-slate-400 mb-1">Intent</div>
+              <div class="text-sm font-semibold text-cyan-300">${formatIntent(data.intent)}</div>
+              <div class="text-xs text-slate-500 mt-0.5">${(data.intent_confidence * 100).toFixed(1)}% confidence</div>
+            </div>
+            <div class="rounded-lg bg-slate-900/60 p-3">
+              <div class="text-xs text-slate-400 mb-1">Emotion</div>
+              <div class="text-sm font-semibold text-violet-300">${capitalize(data.emotion)}</div>
+            </div>
+          </div>
+
+          <div class="rounded-lg bg-slate-900/60 p-3 mb-3">
+            <div class="text-xs text-slate-400 mb-1">Dispatch Recommendation</div>
+            <div class="text-sm font-semibold text-emerald-300 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              </svg>
+              ${escapeHtml(data.responder)}
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-slate-500">
+            <span>Call ID: ${data.call_id.substring(0, 8)}...</span>
+            <span>Processed in ${data.latency_ms}ms</span>
+          </div>
+        </div>
+      `;
+      chatContainer.appendChild(div);
+      scrollToBottom();
+    }
+
+    function addErrorMessage(errMsg) {
+      const div = document.createElement("div");
+      div.className = "flex gap-3";
+      div.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-rose-600 flex-shrink-0 flex items-center justify-center mt-1">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <div class="rounded-xl bg-rose-900/30 border border-rose-700 p-4 max-w-2xl">
+          <p class="text-sm text-rose-200">${escapeHtml(errMsg)}</p>
+        </div>
+      `;
+      chatContainer.appendChild(div);
+      scrollToBottom();
+    }
+
+    function escapeHtml(text) {
+      const d = document.createElement("div");
+      d.textContent = text;
+      return d.innerHTML;
+    }
+
+    function capitalize(s) {
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    function formatIntent(intent) {
+      return intent.split("_").map(capitalize).join(" ");
+    }
+
+    chatForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = messageInput.value.trim();
+      if (!text || processing) return;
+
+      processing = true;
+      sendBtn.disabled = true;
+      messageInput.value = "";
+      charCount.textContent = "0";
+
+      addUserMessage(text);
+      addTypingIndicator();
+
+      try {
+        const res = await fetch("/process-emergency", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript: text, caller_id: "demo-user" }),
+        });
+
+        removeTypingIndicator();
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Server error (${res.status})`);
+        }
+
+        const data = await res.json();
+        addResultMessage(data);
+      } catch (err) {
+        removeTypingIndicator();
+        addErrorMessage(err.message || "Failed to connect to the server. Please try again.");
+      } finally {
+        processing = false;
+        sendBtn.disabled = false;
+        messageInput.focus();
+      }
+    });
+
+    // Focus input on load
+    messageInput.focus();
+  </script>
+</body>
+</html>
