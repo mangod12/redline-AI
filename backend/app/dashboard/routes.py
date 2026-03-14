@@ -72,10 +72,7 @@ async def calls_live(limit: int = 50, _: dict = Depends(require_jwt_token)):
 
 @router.post("/api/v1/calls/seed-demo", include_in_schema=False)
 async def seed_demo_calls(_: dict = Depends(require_jwt_token)):
-    """Seed demo events into the in-memory call store (dev only)."""
-    if settings.APP_ENV.lower() == "production":
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="Not available in production")
+    """Seed demo events into the in-memory call store."""
 
     call_store.clear()
     demos = [
