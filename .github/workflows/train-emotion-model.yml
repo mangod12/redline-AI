@@ -73,31 +73,22 @@ jobs:
 
       - name: Configure Kaggle auth
         env:
-          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
-          # KGAT-style tokens: kaggle CLI reads KAGGLE_API_TOKEN env var directly
-          # For older CLI versions, also write kaggle.json as fallback
           mkdir -p ~/.kaggle
-          if echo "$KAGGLE_API_TOKEN" | grep -q '"username"'; then
-            # Legacy JSON format: {"username":"...","key":"..."}
-            echo "$KAGGLE_API_TOKEN" > ~/.kaggle/kaggle.json
-          else
-            # KGAT token — write a placeholder so CLI doesn't complain about missing file
-            echo '{}' > ~/.kaggle/kaggle.json
-          fi
+          echo "{\"username\":\"${KAGGLE_USERNAME}\",\"key\":\"${KAGGLE_KEY}\"}" > ~/.kaggle/kaggle.json
           chmod 600 ~/.kaggle/kaggle.json
+          # Verify auth works
+          kaggle datasets list -s "test" --max-size 1 > /dev/null 2>&1 && echo "Kaggle auth OK" || { echo "ERROR: Kaggle auth failed"; exit 1; }
 
       - name: Download TESS from Kaggle
-        env:
-          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: |
           mkdir -p datasets/tess
           kaggle datasets download -d ejlok1/toronto-emotional-speech-set-tess -p datasets/tess --unzip
           echo "TESS files: $(find datasets/tess -name '*.wav' | wc -l)"
 
       - name: Download CREMA-D from Kaggle
-        env:
-          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: |
           mkdir -p datasets/crema-d
           kaggle datasets download -d ejlok1/cremad -p datasets/crema-d --unzip
