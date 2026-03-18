@@ -71,21 +71,26 @@ jobs:
           unzip -q ravdess.zip -d datasets/ravdess
           echo "RAVDESS files: $(find datasets/ravdess -name '*.wav' | wc -l)"
 
+      - name: Configure Kaggle auth
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          # KGAT-style tokens: kaggle CLI reads KAGGLE_API_TOKEN env var directly
+          # For older CLI versions, also write kaggle.json as fallback
+          mkdir -p ~/.kaggle
+          if echo "$KAGGLE_API_TOKEN" | grep -q '"username"'; then
+            # Legacy JSON format: {"username":"...","key":"..."}
+            echo "$KAGGLE_API_TOKEN" > ~/.kaggle/kaggle.json
+          else
+            # KGAT token — write a placeholder so CLI doesn't complain about missing file
+            echo '{}' > ~/.kaggle/kaggle.json
+          fi
+          chmod 600 ~/.kaggle/kaggle.json
+
       - name: Download TESS from Kaggle
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: |
-          mkdir -p ~/.kaggle
-          echo "{\"username\":\"$(echo $KAGGLE_API_TOKEN | cut -d: -f1)\",\"key\":\"$(echo $KAGGLE_API_TOKEN | cut -d: -f2)\"}" > ~/.kaggle/kaggle.json 2>/dev/null || true
-          # If the token is a raw JSON or KGAT token, write it directly
-          if echo "$KAGGLE_API_TOKEN" | grep -q '"username"'; then
-            echo "$KAGGLE_API_TOKEN" > ~/.kaggle/kaggle.json
-          elif echo "$KAGGLE_API_TOKEN" | grep -q 'KGAT_'; then
-            # KGAT-style tokens are set as env var for kaggle CLI
-            export KAGGLE_KEY="$KAGGLE_API_TOKEN"
-          fi
-          chmod 600 ~/.kaggle/kaggle.json 2>/dev/null || true
-
           mkdir -p datasets/tess
           kaggle datasets download -d ejlok1/toronto-emotional-speech-set-tess -p datasets/tess --unzip
           echo "TESS files: $(find datasets/tess -name '*.wav' | wc -l)"
