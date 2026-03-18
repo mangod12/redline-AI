@@ -259,7 +259,7 @@ def make_splits(samples: list[AudioSample], seed: int) -> tuple[list[int], list[
 
 
 def compute_mfcc_stats(dataset: Dataset[tuple[torch.Tensor, torch.Tensor]], batch_size: int) -> tuple[float, float]:
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=torch.cuda.is_available())
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=torch.cuda.is_available())
     total_sum = 0.0
     total_sq_sum = 0.0
     total_count = 0
@@ -384,21 +384,21 @@ def main() -> None:
         train_ds,
         batch_size=args.batch_size,
         shuffle=True,
-        num_workers=2,
+        num_workers=0,
         pin_memory=torch.cuda.is_available(),
     )
     val_loader = DataLoader(
         val_ds,
         batch_size=args.batch_size,
         shuffle=False,
-        num_workers=2,
+        num_workers=0,
         pin_memory=torch.cuda.is_available(),
     )
     test_loader = DataLoader(
         test_ds,
         batch_size=args.batch_size,
         shuffle=False,
-        num_workers=2,
+        num_workers=0,
         pin_memory=torch.cuda.is_available(),
     )
 

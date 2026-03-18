@@ -20,3 +20,6 @@ backups/
 # Gunicorn artifacts
 *.ctl
 *.db
+
+# Security audit reports
+securityrisks.md

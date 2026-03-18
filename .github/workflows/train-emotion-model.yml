@@ -1,0 +1,261 @@
+name: Train Emotion Model
+
+on:
+  workflow_dispatch:
+    inputs:
+      epochs:
+        description: "Training epochs"
+        required: false
+        default: "80"
+        type: string
+      target_accuracy:
+        description: "Target test accuracy (%)"
+        required: false
+        default: "85.0"
+        type: string
+      deploy:
+        description: "Deploy to Cloud Run after training"
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: train-emotion-model
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  SERVICE_NAME: redline-ai
+  GCS_BUCKET: redline-ai-models
+
+jobs:
+  train:
+    name: Download Datasets & Train CNN
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+
+    outputs:
+      test_accuracy: ${{ steps.train.outputs.test_accuracy }}
+      target_reached: ${{ steps.train.outputs.target_reached }}
+      onnx_path: ${{ steps.train.outputs.onnx_path }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsndfile1 ffmpeg
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install soundfile numpy scikit-learn onnx onnxruntime kaggle
+
+      # ── Download Datasets ──────────────────────────────────────────
+      - name: Download RAVDESS from Zenodo
+        run: |
+          mkdir -p datasets/ravdess
+          echo "Downloading RAVDESS..."
+          curl -L -o ravdess.zip "https://zenodo.org/records/1188976/files/Audio_Speech_Actors_01-24.zip?download=1"
+          unzip -q ravdess.zip -d datasets/ravdess
+          echo "RAVDESS files: $(find datasets/ravdess -name '*.wav' | wc -l)"
+
+      - name: Download TESS from Kaggle
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          mkdir -p ~/.kaggle
+          echo "{\"username\":\"$(echo $KAGGLE_API_TOKEN | cut -d: -f1)\",\"key\":\"$(echo $KAGGLE_API_TOKEN | cut -d: -f2)\"}" > ~/.kaggle/kaggle.json 2>/dev/null || true
+          # If the token is a raw JSON or KGAT token, write it directly
+          if echo "$KAGGLE_API_TOKEN" | grep -q '"username"'; then
+            echo "$KAGGLE_API_TOKEN" > ~/.kaggle/kaggle.json
+          elif echo "$KAGGLE_API_TOKEN" | grep -q 'KGAT_'; then
+            # KGAT-style tokens are set as env var for kaggle CLI
+            export KAGGLE_KEY="$KAGGLE_API_TOKEN"
+          fi
+          chmod 600 ~/.kaggle/kaggle.json 2>/dev/null || true
+
+          mkdir -p datasets/tess
+          kaggle datasets download -d ejlok1/toronto-emotional-speech-set-tess -p datasets/tess --unzip
+          echo "TESS files: $(find datasets/tess -name '*.wav' | wc -l)"
+
+      - name: Download CREMA-D from Kaggle
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          mkdir -p datasets/crema-d
+          kaggle datasets download -d ejlok1/cremad -p datasets/crema-d --unzip
+          echo "CREMA-D files: $(find datasets/crema-d -name '*.wav' | wc -l)"
+
+      - name: Show dataset summary
+        run: |
+          echo "## Dataset Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Dataset | WAV Files |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| RAVDESS | $(find datasets/ravdess -name '*.wav' | wc -l) |" >> $GITHUB_STEP_SUMMARY
+          echo "| TESS | $(find datasets/tess -name '*.wav' | wc -l) |" >> $GITHUB_STEP_SUMMARY
+          echo "| CREMA-D | $(find datasets/crema-d -name '*.wav' | wc -l) |" >> $GITHUB_STEP_SUMMARY
+
+      # ── Train ──────────────────────────────────────────────────────
+      - id: train
+        name: Train emotion CNN
+        run: |
+          python ml/train_emotion_cnn_multidataset.py \
+            --ravdess-dir datasets/ravdess \
+            --cremad-dir datasets/crema-d \
+            --tess-dir datasets/tess \
+            --epochs ${{ github.event.inputs.epochs || '80' }} \
+            --target-accuracy ${{ github.event.inputs.target_accuracy || '85.0' }} \
+            --batch-size 32 \
+            --lr 3e-4 \
+            --patience 10 \
+            --output-dir ./emotion_exports
+
+          # Parse training metadata for outputs
+          TEST_ACC=$(python -c "import json; m=json.load(open('emotion_exports/training_metadata.json')); print(f'{m[\"test_accuracy\"]*100:.2f}')")
+          TARGET_REACHED=$(python -c "import json; m=json.load(open('emotion_exports/training_metadata.json')); print(str(m['target_reached']).lower())")
+
+          echo "test_accuracy=${TEST_ACC}" >> "$GITHUB_OUTPUT"
+          echo "target_reached=${TARGET_REACHED}" >> "$GITHUB_OUTPUT"
+          echo "onnx_path=emotion_exports/emotion_cnn.onnx" >> "$GITHUB_OUTPUT"
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Training Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Accuracy:** ${TEST_ACC}%" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Reached:** ${TARGET_REACHED}" >> $GITHUB_STEP_SUMMARY
+          cat emotion_exports/training_metadata.json | python -m json.tool >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify ONNX model
+        run: |
+          python -c "
+          import onnxruntime as ort
+          import numpy as np
+
+          sess = ort.InferenceSession('emotion_exports/emotion_cnn.onnx')
+          inp = sess.get_inputs()[0]
+          out = sess.get_outputs()[0]
+          print(f'Input: {inp.name} shape={inp.shape} type={inp.type}')
+          print(f'Output: {out.name} shape={out.shape} type={out.type}')
+
+          dummy = np.zeros((1, 1, 40, 94), dtype=np.float32)
+          result = sess.run(None, {inp.name: dummy})
+          print(f'Inference OK — output shape: {result[0].shape}')
+          assert result[0].shape == (1, 8), f'Unexpected shape: {result[0].shape}'
+          print('ONNX model verification passed!')
+          "
+
+      # ── Upload artifacts ───────────────────────────────────────────
+      - name: Upload training artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: emotion-model-artifacts
+          path: |
+            emotion_exports/emotion_cnn.onnx
+            emotion_exports/training_metadata.json
+          retention-days: 90
+
+  # ── Upload to GCS ────────────────────────────────────────────────
+  upload:
+    name: Upload Model to GCS
+    needs: train
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: emotion-model-artifacts
+          path: emotion_exports
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload ONNX model to GCS
+        run: |
+          # Upload model
+          gsutil cp emotion_exports/emotion_cnn.onnx \
+            gs://${{ env.GCS_BUCKET }}/models/emotion_model.onnx
+
+          # Upload metadata alongside model
+          gsutil cp emotion_exports/training_metadata.json \
+            gs://${{ env.GCS_BUCKET }}/models/training_metadata.json
+
+          echo "## Model Upload" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bucket:** gs://${{ env.GCS_BUCKET }}/models/" >> $GITHUB_STEP_SUMMARY
+          echo "- **Model:** emotion_model.onnx" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Accuracy:** ${{ needs.train.outputs.test_accuracy }}%" >> $GITHUB_STEP_SUMMARY
+
+  # ── Deploy (restart Cloud Run to pick up new model) ──────────────
+  deploy:
+    name: Restart Cloud Run Service
+    needs: [train, upload]
+    if: ${{ github.event.inputs.deploy == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Restart Cloud Run to pick up new model
+        run: |
+          # Force a new revision by updating an env var with the run timestamp
+          gcloud run services update ${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --update-env-vars="MODEL_UPDATED_AT=$(date -u +%Y%m%dT%H%M%SZ)"
+
+          echo "## Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "Cloud Run service **${{ env.SERVICE_NAME }}** restarted to load new model." >> $GITHUB_STEP_SUMMARY
+
+      - name: Health check
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)')
+
+          echo "Service URL: ${URL}"
+
+          # Wait for the new revision to become ready
+          for i in 1 2 3 4 5; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${URL}/health" || echo "000")
+            echo "Attempt ${i}: HTTP ${HTTP_CODE}"
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed!" >> $GITHUB_STEP_SUMMARY
+              exit 0
+            fi
+            sleep 15
+          done
+
+          echo "WARNING: Health check did not return 200 after 5 attempts" >> $GITHUB_STEP_SUMMARY
+          echo "The service may still be starting up. Check Cloud Run logs." >> $GITHUB_STEP_SUMMARY
+          # Don't fail the workflow — the model upload succeeded

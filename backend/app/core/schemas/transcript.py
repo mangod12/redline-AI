@@ -14,3 +14,4 @@ class Transcript(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of transcription")
     audio_duration: float | None = Field(None, description="Duration of the audio in seconds")
     speaker_id: str | None = Field(None, description="Identifier for the speaker if available")
+    audio_data: bytes | None = Field(None, description="Raw audio bytes for acoustic analysis", exclude=True)

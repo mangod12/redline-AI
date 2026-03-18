@@ -103,6 +103,7 @@ async def process_emergency_core(
                 detail="Invalid JSON body",
             )
 
+    audio_bytes: bytes | None = None
     if audio_file is not None:
         whisper_svc = getattr(request.app.state, "whisper_service", None)
         if whisper_svc is None or not whisper_svc.is_ready():
@@ -162,7 +163,9 @@ async def process_emergency_core(
 
         emotion_loader = getattr(request.app.state, "emotion_loader", None)
         agent = EmotionAgent(loader=emotion_loader)
-        emotion_result = await agent.process(Transcript(text=transcript, confidence=1.0))
+        emotion_result = await agent.process(
+            Transcript(text=transcript, confidence=1.0, audio_data=audio_bytes)
+        )
         emotion_label = emotion_result.primary_emotion.value
         emotion_confidence = float(emotion_result.confidence)
         emotion_fallback = emotion_confidence <= 0.0

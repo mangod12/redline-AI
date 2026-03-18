@@ -26,6 +26,8 @@ from app.agents.base import BaseAgent
 from app.core.schemas import EmotionAnalysis, EmotionType, Transcript
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from app.ml.emotion_model_loader import EmotionModelLoader
 
 # ---------------------------------------------------------------------------
@@ -110,20 +112,11 @@ log = structlog.get_logger("redline_ai.agents.emotion")
 
 
 # ---------------------------------------------------------------------------
-# Module-level MFCC extraction helper (CPU-only, no torch at inference time)
+# MFCC extraction
 # ---------------------------------------------------------------------------
 
-def _text_to_mock_mfcc() -> np.ndarray:
-    """Return a zeroed MFCC placeholder (shape 1×1×40×94 float32).
-
-    The real MFCC extraction path lives in the ML training pipeline
-    (ml/dataset.py).  During inference we receive live audio bytes from
-    the STT/audio pipeline – that wiring is done by the orchestrator.
-    When only *text* is available (i.e., this agent receives a Transcript
-    without raw audio), we use a zero tensor so that the model inference
-    still exercises the full code-path and confidence thresholds handle
-    the degradation gracefully.
-    """
+def _zero_mfcc() -> np.ndarray:
+    """Return a zeroed MFCC placeholder for text-only fallback."""
     import numpy as np
 
     return np.zeros((1, 1, 40, 94), dtype=np.float32)
@@ -320,7 +313,8 @@ class EmotionAgent(BaseAgent):
         # ---- Prioritized ML Execution ------------------------------------
         # We give ML a "soft budget" of 800ms before falling back.
         # This prevents the instant heuristic from always winning (FIRST_COMPLETED risk).
-        ml_task = asyncio.create_task(self._run_ml(text))
+        audio_data = getattr(input_data, "audio_data", None)
+        ml_task = asyncio.create_task(self._run_ml(text, audio_data=audio_data))
 
         try:
             # Stage 1: Wait for ML within the soft budget
@@ -361,7 +355,9 @@ class EmotionAgent(BaseAgent):
     # Internal coroutines
     # ------------------------------------------------------------------
 
-    async def _run_ml(self, text: str) -> EmotionAnalysis | None:
+    async def _run_ml(
+        self, text: str, audio_data: bytes | None = None
+    ) -> EmotionAnalysis | None:
         """Run ONNX inference.  Trips circuit breaker on any exception."""
         if self._loader is None or not self._loader.is_ready():
             ML_FAILURE_COUNT.labels(reason="exception").inc()
@@ -370,7 +366,12 @@ class EmotionAgent(BaseAgent):
 
         start = time.perf_counter()
         try:
-            mfcc = _text_to_mock_mfcc()  # replaced by real audio featuriser in prod
+            if audio_data is not None:
+                from app.ml.mfcc_extractor import extract_mfcc
+
+                mfcc = await extract_mfcc(audio_data)
+            else:
+                mfcc = _zero_mfcc()
 
             @_ml_breaker
             def _protected_infer() -> dict[str, float]:
