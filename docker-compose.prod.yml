@@ -19,18 +19,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  celery_worker:
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   ml_service:
     restart: unless-stopped
     command: uvicorn ml_service.app:app --host 0.0.0.0 --port 8001

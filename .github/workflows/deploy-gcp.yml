@@ -7,6 +7,15 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -26,6 +35,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
       deploy_enabled: ${{ steps.check.outputs.deploy_enabled }}
+      environment: ${{ steps.check.outputs.environment }}
     steps:
       - id: check
         env:
@@ -40,6 +50,9 @@ jobs:
             echo "deploy_enabled=false" >> "$GITHUB_OUTPUT"
             echo "⏭️ Skipping deploy: missing one or more required secrets (GCP_PROJECT_ID, GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT)." >> "$GITHUB_STEP_SUMMARY"
           fi
+          # Determine environment (default to production for workflow_run triggers)
+          ENV="${{ github.event.inputs.environment || 'production' }}"
+          echo "environment=${ENV}" >> "$GITHUB_OUTPUT"
 
   # ── Build & Push ──────────────────────────────────────────────────
   build:
@@ -88,11 +101,11 @@ jobs:
             ${{ steps.meta.outputs.image }}
             ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/redline-ai/${{ env.SERVICE_NAME }}:latest
 
-  # ── Deploy ────────────────────────────────────────────────────────
+  # ── Deploy Production ───────────────────────────────────────────
   deploy:
-    name: Deploy to Cloud Run
+    name: Deploy to Cloud Run (production)
     needs: [preflight, build]
-    if: ${{ needs.preflight.outputs.deploy_enabled == 'true' }}
+    if: ${{ needs.preflight.outputs.deploy_enabled == 'true' && needs.preflight.outputs.environment == 'production' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -119,7 +132,7 @@ jobs:
             --port=8000
             --memory=4Gi
             --cpu=2
-            --min-instances=0
+            --min-instances=1
             --max-instances=10
             --timeout=600
             --allow-unauthenticated
@@ -132,6 +145,7 @@ jobs:
             ALLOWED_ORIGIN=https://redline-ai-359883234654.us-central1.run.app
             WHISPER_MODEL_SIZE=tiny
             GUNICORN_WORKERS=1
+            GCS_MODEL_BUCKET=redline-ai-models
           secrets: |
             SECRET_KEY=SECRET_KEY:latest
             TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest
@@ -144,8 +158,62 @@ jobs:
           URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
             --region=${{ env.REGION }} \
             --format='value(status.url)')
-          echo "## Deployed to Cloud Run" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployed to Cloud Run (production)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**URL:** ${URL}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/redline-ai/${{ env.SERVICE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+
+  # ── Deploy Staging ──────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Cloud Run (staging)
+    needs: [preflight, build]
+    if: ${{ needs.preflight.outputs.deploy_enabled == 'true' && needs.preflight.outputs.environment == 'staging' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run (staging)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}-staging
+          image: ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/redline-ai/${{ env.SERVICE_NAME }}:latest
+          region: ${{ env.REGION }}
+          flags: |
+            --port=8000
+            --memory=2Gi
+            --cpu=1
+            --min-instances=0
+            --max-instances=3
+            --timeout=600
+            --allow-unauthenticated
+            --add-cloudsql-instances=${{ secrets.GCP_PROJECT_ID }}:${{ env.REGION }}:redline-db
+          env_vars: |
+            APP_ENV=production
+            USE_SQLITE=false
+            ENABLE_DOCS=true
+            CLOUD_SQL_CONNECTION_NAME=${{ secrets.GCP_PROJECT_ID }}:${{ env.REGION }}:redline-db
+            WHISPER_MODEL_SIZE=tiny
+            GUNICORN_WORKERS=1
+            GCS_MODEL_BUCKET=redline-ai-models
+
+      - name: Show staging URL
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }}-staging \
+            --region=${{ env.REGION }} \
+            --format='value(status.url)')
+          echo "## Deployed to Cloud Run (staging)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${URL}" >> $GITHUB_STEP_SUMMARY

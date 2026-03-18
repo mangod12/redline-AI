@@ -50,6 +50,14 @@ class Settings(BaseSettings):
         Path(__file__).resolve().parents[2] / "ml" / "intent_model.onnx"
     )
 
+    # ---- Emotion CNN (ONNX / PyTorch checkpoint) ----------------------------
+    EMOTION_ONNX_PATH: str = str(
+        Path(__file__).resolve().parents[2] / "ml" / "emotion_model.onnx"
+    )
+    EMOTION_PT_PATH: str = str(
+        Path(__file__).resolve().parents[2] / "ml" / "emotion_model.pt"
+    )
+
     # ---- Whisper STT (local, no paid API) ---------------------------------
     WHISPER_MODEL_SIZE: str = "small"
 

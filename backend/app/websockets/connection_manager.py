@@ -63,8 +63,16 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
 
     redis = get_redis_client()
     if not redis:
-        logger.error("Redis not initialized for websockets")
-        manager.disconnect(websocket, call_id)
+        # Graceful degradation: keep connection open but warn client that
+        # real-time updates are unavailable (no Redis pub-sub).
+        logger.warning("Redis unavailable — WebSocket for call %s will not receive live updates", call_id)
+        try:
+            await websocket.send_json({"type": "warning", "message": "Live updates unavailable — Redis not connected"})
+            # Keep connection alive; client can still receive in-process broadcasts
+            while True:
+                await asyncio.sleep(5)
+        except WebSocketDisconnect:
+            manager.disconnect(websocket, call_id)
         return
 
     pubsub = redis.pubsub()
@@ -119,7 +127,14 @@ async def dashboard_websocket(websocket: WebSocket):
 
     redis = get_redis_client()
     if not redis:
-        await websocket.close(code=4002, reason="Backend unavailable")
+        # Graceful degradation: notify client and keep connection alive
+        logger.warning("Redis unavailable — dashboard WebSocket will not receive live events")
+        try:
+            await websocket.send_json({"type": "warning", "message": "Live events unavailable — Redis not connected"})
+            while True:
+                await asyncio.sleep(5)
+        except WebSocketDisconnect:
+            pass
         return
 
     pubsub = redis.pubsub()

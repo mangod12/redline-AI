@@ -11,14 +11,15 @@ REGION="us-central1"
 SERVICE_ACCOUNT="github-deployer"
 GITHUB_OWNER="mangod12"
 GITHUB_REPO="redline-ai"
+GCS_MODEL_BUCKET="redline-ai-models"
 
-echo "🚀 Starting GCP deployment setup for $PROJECT_ID..."
+echo "Starting GCP deployment setup for $PROJECT_ID..."
 echo ""
 
 # ============================================================================
 # STEP 1: Enable Required APIs
 # ============================================================================
-echo "📡 STEP 1: Enabling required GCP APIs..."
+echo "STEP 1: Enabling required GCP APIs..."
 gcloud services enable compute.googleapis.com \
   artifactregistry.googleapis.com \
   run.googleapis.com \
@@ -26,32 +27,34 @@ gcloud services enable compute.googleapis.com \
   sts.googleapis.com \
   serviceusage.googleapis.com \
   secretmanager.googleapis.com \
+  sqladmin.googleapis.com \
+  storage.googleapis.com \
   --project=$PROJECT_ID
-echo "✓ APIs enabled"
+echo "APIs enabled"
 echo ""
 
 # ============================================================================
 # STEP 2: Create Artifact Registry
 # ============================================================================
-echo "📦 STEP 2: Creating Artifact Registry..."
+echo "STEP 2: Creating Artifact Registry..."
 gcloud artifacts repositories create redline-ai \
   --repository-format=docker \
   --location=$REGION \
-  --project=$PROJECT_ID || echo "⚠️ Repository may already exist (continuing...)"
-echo "✓ Artifact Registry created/verified"
+  --project=$PROJECT_ID || echo "Repository may already exist (continuing...)"
+echo "Artifact Registry created/verified"
 echo ""
 
 # ============================================================================
 # STEP 3: Set Up Workload Identity Federation
 # ============================================================================
-echo "🔐 STEP 3: Setting up Workload Identity Federation..."
+echo "STEP 3: Setting up Workload Identity Federation..."
 
 # Create WIF pool
 echo "  Creating WIF pool..."
 gcloud iam workload-identity-pools create "github-pool" \
   --project=$PROJECT_ID \
   --location=global \
-  --display-name="GitHub Actions" || echo "⚠️ Pool may already exist (continuing...)"
+  --display-name="GitHub Actions" || echo "Pool may already exist (continuing...)"
 
 # Create WIF provider
 echo "  Creating WIF provider..."
@@ -61,7 +64,7 @@ gcloud iam workload-identity-pools providers create-oidc "github-provider" \
   --workload-identity-pool="github-pool" \
   --display-name="GitHub" \
   --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.aud=assertion.aud,attribute.repository=assertion.repository" \
-  --issuer-uri="https://token.actions.githubusercontent.com" || echo "⚠️ Provider may already exist (continuing...)"
+  --issuer-uri="https://token.actions.githubusercontent.com" || echo "Provider may already exist (continuing...)"
 
 # Get WIF provider resource name
 echo "  Fetching WIF provider resource name..."
@@ -70,19 +73,19 @@ WIF_PROVIDER=$(gcloud iam workload-identity-pools providers describe "github-pro
   --location=global \
   --workload-identity-pool="github-pool" \
   --format="value(name)")
-echo "✓ WIF configured"
+echo "WIF configured"
 echo "  WIF Provider: $WIF_PROVIDER"
 echo ""
 
 # ============================================================================
 # STEP 4: Create Service Account for GitHub Actions
 # ============================================================================
-echo "👤 STEP 4: Creating service account for GitHub Actions..."
+echo "STEP 4: Creating service account for GitHub Actions..."
 
 # Create service account
 gcloud iam service-accounts create $SERVICE_ACCOUNT \
   --project=$PROJECT_ID \
-  --display-name="GitHub Actions Deployer" || echo "⚠️ Service account may already exist (continuing...)"
+  --display-name="GitHub Actions Deployer" || echo "Service account may already exist (continuing...)"
 
 SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com"
 echo "  Service Account: $SERVICE_ACCOUNT_EMAIL"
@@ -115,6 +118,13 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --role="roles/iam.serviceAccountUser" \
   --condition=None || true
 
+# Grant GCS access for model storage
+echo "  Granting Storage Object Viewer role..."
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
+  --role="roles/storage.objectViewer" \
+  --condition=None || true
+
 # Allow GitHub to impersonate this service account
 echo "  Setting up Workload Identity binding for GitHub..."
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
@@ -123,13 +133,35 @@ gcloud iam service-accounts add-iam-policy-binding "$SERVICE_ACCOUNT_EMAIL" \
   --role="roles/iam.workloadIdentityUser" \
   --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-pool/attribute.repository/${GITHUB_OWNER}/${GITHUB_REPO}" || true
 
-echo "✓ Service account configured"
+echo "Service account configured"
 echo ""
 
 # ============================================================================
-# STEP 5: Create Secrets in GCP Secret Manager
+# STEP 5: Create GCS Bucket for ML Models
 # ============================================================================
-echo "🔒 STEP 5: Creating secrets in GCP Secret Manager..."
+echo "STEP 5: Creating GCS bucket for ML models..."
+gcloud storage buckets create "gs://${GCS_MODEL_BUCKET}" \
+  --project=$PROJECT_ID \
+  --location=$REGION \
+  --uniform-bucket-level-access || echo "Bucket may already exist (continuing...)"
+
+# Grant Cloud Run default SA access to model bucket
+DEFAULT_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud storage buckets add-iam-policy-binding "gs://${GCS_MODEL_BUCKET}" \
+  --member="serviceAccount:$DEFAULT_SA" \
+  --role="roles/storage.objectViewer" || true
+
+echo "GCS model bucket created/verified: gs://${GCS_MODEL_BUCKET}"
+echo ""
+echo "  Upload models with:"
+echo "    gcloud storage cp ml/intent_model.onnx gs://${GCS_MODEL_BUCKET}/models/"
+echo "    gcloud storage cp backend/ml/emotion_model.onnx gs://${GCS_MODEL_BUCKET}/models/"
+echo ""
+
+# ============================================================================
+# STEP 6: Create Secrets in GCP Secret Manager
+# ============================================================================
+echo "STEP 6: Creating secrets in GCP Secret Manager..."
 
 # Generate a random secret key
 SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null || python3 -c "import secrets; print(secrets.token_urlsafe(32))")
@@ -161,24 +193,33 @@ echo "placeholder" | gcloud secrets create TWILIO_AUTH_TOKEN --data-file=- --pro
 
 # Grant default Compute Engine SA access to secrets (Cloud Run runtime)
 echo "  Granting default compute SA secret access..."
-PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
-DEFAULT_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:$DEFAULT_SA" \
   --role="roles/secretmanager.secretAccessor" \
   --condition=None || true
 
-echo "✓ Secrets created"
+echo "Secrets created"
 echo ""
 
 # ============================================================================
-# STEP 6: Get Project Number (needed for GitHub secrets)
+# STEP 7: Enable Cloud SQL Automated Backups
 # ============================================================================
-echo "📋 STEP 6: Gathering information for GitHub secrets..."
-PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+echo "STEP 7: Configuring Cloud SQL automated backups..."
+gcloud sql instances patch redline-db \
+  --project=$PROJECT_ID \
+  --backup-start-time=03:00 \
+  --enable-bin-log \
+  --retained-backups-count=7 \
+  --retained-transaction-log-days=7 || echo "Cloud SQL instance not found or backup already configured (continuing...)"
+echo "Cloud SQL backup configured"
+echo ""
+
+# ============================================================================
+# STEP 8: Summary
+# ============================================================================
 echo ""
 echo "================================================================"
-echo "✅ GCP SETUP COMPLETE"
+echo "GCP SETUP COMPLETE"
 echo "================================================================"
 echo ""
 echo "Save these values - you'll need them to set GitHub Actions secrets:"
@@ -194,16 +235,21 @@ echo "  $SERVICE_ACCOUNT_EMAIL"
 echo ""
 echo "================================================================"
 echo ""
-echo "Next: Set GitHub Actions secrets by running:"
+echo "Next steps:"
 echo ""
-echo "  gh secret set GCP_PROJECT_ID --body '$PROJECT_ID' -R mangod12/redline-ai"
+echo "  1. Set GitHub Actions secrets:"
+echo "     gh secret set GCP_PROJECT_ID --body '$PROJECT_ID' -R mangod12/redline-ai"
+echo "     gh secret set GCP_WORKLOAD_IDENTITY_PROVIDER --body '$WIF_PROVIDER' -R mangod12/redline-ai"
+echo "     gh secret set GCP_SERVICE_ACCOUNT --body '$SERVICE_ACCOUNT_EMAIL' -R mangod12/redline-ai"
 echo ""
-echo "  gh secret set GCP_WORKLOAD_IDENTITY_PROVIDER --body '$WIF_PROVIDER' -R mangod12/redline-ai"
+echo "  2. Upload ML models to GCS:"
+echo "     gcloud storage cp ml/intent_model.onnx gs://${GCS_MODEL_BUCKET}/models/"
+echo "     gcloud storage cp backend/ml/emotion_model.onnx gs://${GCS_MODEL_BUCKET}/models/"
 echo ""
-echo "  gh secret set GCP_SERVICE_ACCOUNT --body '$SERVICE_ACCOUNT_EMAIL' -R mangod12/redline-ai"
+echo "  3. Trigger deployment:"
+echo "     gh workflow run deploy-gcp.yml -R mangod12/redline-ai"
 echo ""
-echo "Then trigger deployment with:"
-echo ""
-echo "  gh workflow run deploy-gcp.yml -R mangod12/redline-ai"
+echo "  4. Deploy to staging (manual):"
+echo "     gh workflow run deploy-gcp.yml -R mangod12/redline-ai -f environment=staging"
 echo ""
 echo "================================================================"

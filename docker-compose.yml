@@ -29,36 +29,6 @@ services:
       - ./ml:/app/ml
     command: gunicorn app.main:app -c gunicorn.conf.py
 
-  celery_worker:
-    build: ./backend
-    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=2
-    environment:
-      - USE_SQLITE=false
-      - POSTGRES_USER=${POSTGRES_USER:-redline}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
-      - POSTGRES_SERVER=${POSTGRES_SERVER:-postgres}
-      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-      - POSTGRES_DB=${POSTGRES_DB:-redline}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY}
-    env_file:
-      - ./backend/.env
-      - .env.docker.local
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - ./ml:/app/ml
-    healthcheck:
-      test: ["CMD-SHELL", "celery -A app.worker.celery_app inspect ping --timeout 5 || exit 1"]
-      interval: 30s
-      timeout: 15s
-      retries: 3
-      start_period: 60s
-
   ml_service:
     build: ./backend
     ports:

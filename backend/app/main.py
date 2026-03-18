@@ -29,6 +29,7 @@ from app.core.database import engine
 from app.core.redis_client import close_redis, init_redis
 from app.core.security import limiter, require_jwt_token
 from app.core.security_headers import SecurityHeadersMiddleware
+from app.ml.emotion_model_loader import EmotionModelLoader
 from app.ml.intent_model_loader import IntentModelLoader
 from app.models.base import Base
 from app.services.whisper_service import WhisperService
@@ -73,10 +74,15 @@ async def lifespan(app: FastAPI):
     if any(origin == "*" for origin in settings.ALLOWED_ORIGINS):
         raise RuntimeError("Wildcard CORS origin is not allowed")
 
-    # 2. Redis
+    # 2. Download ML models from GCS (no-op if GCS_MODEL_BUCKET is unset)
+    from app.ml.gcs_model_store import download_models_from_gcs
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, download_models_from_gcs)
+
+    # 3. Redis
     await init_redis()
 
-    # 3. Database schema (MVP bootstrap — idempotent on restarts)
+    # 4. Database schema (MVP bootstrap — idempotent on restarts)
     # Wrapped in try/except because multiple Gunicorn workers may race to
     # create PostgreSQL enum types, causing IntegrityError on the loser(s).
     try:
@@ -88,16 +94,24 @@ async def lifespan(app: FastAPI):
         else:
             raise
 
-    # 4. Local Whisper STT model (CPU), loaded off the event loop
+    # 5. Local Whisper STT model (CPU), loaded off the event loop
     whisper_service = WhisperService(model_size=settings.WHISPER_MODEL_SIZE)
-    loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, whisper_service.initialize)
     app.state.whisper_service = whisper_service
 
-    # 5. Intent ONNX model
+    # 6. Intent ONNX model
     intent_loader = IntentModelLoader()
     await intent_loader.initialize()
     app.state.intent_loader = intent_loader
+
+    # 7. Emotion ONNX model
+    emotion_loader = EmotionModelLoader()
+    try:
+        await emotion_loader.initialize()
+        app.state.emotion_loader = emotion_loader
+    except Exception as exc:
+        log.warning("Emotion model unavailable – falling back to heuristic", error=str(exc))
+        app.state.emotion_loader = None
 
     # begin background event subscriber
     from app.core.event_listener import start_event_listener
