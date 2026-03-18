@@ -71,24 +71,19 @@ jobs:
           unzip -q ravdess.zip -d datasets/ravdess
           echo "RAVDESS files: $(find datasets/ravdess -name '*.wav' | wc -l)"
 
-      - name: Configure Kaggle auth
-        env:
-          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-        run: |
-          mkdir -p ~/.kaggle
-          echo "{\"username\":\"${KAGGLE_USERNAME}\",\"key\":\"${KAGGLE_KEY}\"}" > ~/.kaggle/kaggle.json
-          chmod 600 ~/.kaggle/kaggle.json
-          # Verify auth works
-          kaggle datasets list -s "test" --max-size 1 > /dev/null 2>&1 && echo "Kaggle auth OK" || { echo "ERROR: Kaggle auth failed"; exit 1; }
-
       - name: Download TESS from Kaggle
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: |
+          # Ensure no kaggle.json exists (forces CLI to use KAGGLE_API_TOKEN env var)
+          rm -f ~/.kaggle/kaggle.json
           mkdir -p datasets/tess
           kaggle datasets download -d ejlok1/toronto-emotional-speech-set-tess -p datasets/tess --unzip
           echo "TESS files: $(find datasets/tess -name '*.wav' | wc -l)"
 
       - name: Download CREMA-D from Kaggle
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: |
           mkdir -p datasets/crema-d
           kaggle datasets download -d ejlok1/cremad -p datasets/crema-d --unzip
