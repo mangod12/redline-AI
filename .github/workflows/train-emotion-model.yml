@@ -33,7 +33,7 @@ jobs:
   train:
     name: Download Datasets & Train CNN
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     permissions:
       contents: read
       id-token: write
