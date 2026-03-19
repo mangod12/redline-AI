@@ -46,7 +46,7 @@ def _extract_mfcc_sync(audio_bytes: bytes) -> np.ndarray:
     """
     import soundfile as sf
     import torch
-    import torchaudio.transforms as T
+    import torchaudio.transforms as audio_transforms
 
     # Read audio from bytes
     audio_buf = io.BytesIO(audio_bytes)
@@ -76,7 +76,7 @@ def _extract_mfcc_sync(audio_bytes: bytes) -> np.ndarray:
 
     # Resample to 16kHz if needed
     if sr != _SAMPLE_RATE:
-        resampler = T.Resample(orig_freq=sr, new_freq=_SAMPLE_RATE)
+        resampler = audio_transforms.Resample(orig_freq=sr, new_freq=_SAMPLE_RATE)
         audio = resampler(audio)
 
     # Pad or truncate to exactly 3 seconds
@@ -87,7 +87,7 @@ def _extract_mfcc_sync(audio_bytes: bytes) -> np.ndarray:
         audio = torch.nn.functional.pad(audio, (0, pad))
 
     # Extract MFCCs
-    mfcc_transform = T.MFCC(
+    mfcc_transform = audio_transforms.MFCC(
         sample_rate=_SAMPLE_RATE,
         n_mfcc=_N_MFCC,
         melkwargs={
