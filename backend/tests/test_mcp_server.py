@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 
 import pytest
-import pytest_asyncio
 
 from app.mcp.server import (
     call_tool,
@@ -20,7 +19,6 @@ from app.mcp.server import (
     list_tools,
     read_resource,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tools

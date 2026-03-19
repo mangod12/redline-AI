@@ -24,9 +24,9 @@ from pathlib import Path
 # Ensure the backend package is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from mcp.server.stdio import stdio_server  # noqa: E402
+from mcp.server.stdio import stdio_server
 
-from app.mcp.server import server  # noqa: E402
+from app.mcp.server import server
 
 
 async def main() -> None:

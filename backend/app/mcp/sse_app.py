@@ -13,11 +13,10 @@ from __future__ import annotations
 
 import logging
 
+from mcp.server.sse import SseServerTransport
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Mount, Route
-
-from mcp.server.sse import SseServerTransport
 
 from .server import server
 
