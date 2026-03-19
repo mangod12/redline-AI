@@ -106,6 +106,8 @@ class MultiDatasetEmotionMFCC(Dataset[tuple[torch.Tensor, torch.Tensor]]):
                 "n_mels": 64,
             },
         )
+        # Cache MFCCs in memory after first computation (avoids re-extraction every epoch)
+        self._cache: dict[int, torch.Tensor] = {}
 
     def set_normalization(self, mean: float, std: float) -> None:
         self.mean = mean
@@ -114,7 +116,11 @@ class MultiDatasetEmotionMFCC(Dataset[tuple[torch.Tensor, torch.Tensor]]):
     def __len__(self) -> int:
         return len(self.samples)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def _extract_mfcc(self, idx: int) -> torch.Tensor:
+        """Extract MFCC for sample at idx, with caching."""
+        if idx in self._cache:
+            return self._cache[idx]
+
         sample = self.samples[idx]
         waveform, sr = sf.read(sample.path)
         audio = torch.tensor(waveform, dtype=torch.float32)
@@ -140,11 +146,17 @@ class MultiDatasetEmotionMFCC(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             pad_steps = self.max_time_steps - mfcc.shape[2]
             mfcc = torch.nn.functional.pad(mfcc, (0, pad_steps))
 
+        self._cache[idx] = mfcc
+        return mfcc
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        mfcc = self._extract_mfcc(idx)
+
         if self.mean is not None and self.std is not None:
             denom = self.std if self.std > 1e-8 else 1.0
             mfcc = (mfcc - self.mean) / denom
 
-        label_tensor = torch.tensor(sample.label, dtype=torch.long)
+        label_tensor = torch.tensor(self.samples[idx].label, dtype=torch.long)
         return mfcc, label_tensor
 
 

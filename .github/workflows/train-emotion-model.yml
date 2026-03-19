@@ -6,7 +6,7 @@ on:
       epochs:
         description: "Training epochs"
         required: false
-        default: "80"
+        default: "30"
         type: string
       target_accuracy:
         description: "Target test accuracy (%)"
