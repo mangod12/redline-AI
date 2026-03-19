@@ -23,6 +23,7 @@ import structlog
 from prometheus_client import Counter, Histogram
 
 from app.agents.base import BaseAgent
+from app.core.config import settings
 from app.core.schemas import EmotionAnalysis, EmotionType, Transcript
 
 if TYPE_CHECKING:
@@ -201,6 +202,90 @@ def _neutral_fallback(text: str) -> EmotionAnalysis:
 
 
 # ---------------------------------------------------------------------------
+# Gemini text-based emotion analysis
+# ---------------------------------------------------------------------------
+
+_GEMINI_EMOTION_PROMPT = """\
+Analyze the emotional state of the speaker in this emergency call transcript.
+
+Transcript: {text}
+
+Respond ONLY with a JSON object in this exact format:
+{{
+    "primary_emotion": "<one of: anger, fear, sadness, joy, surprise, disgust, neutral>",
+    "intensity": <float 0.0 to 1.0>,
+    "confidence": <float 0.0 to 1.0>,
+    "scores": {{
+        "anger": <float>,
+        "fear": <float>,
+        "sadness": <float>,
+        "joy": <float>,
+        "surprise": <float>,
+        "disgust": <float>,
+        "neutral": <float>
+    }}
+}}
+Scores must sum to approximately 1.0. Focus on emergency context."""
+
+_EMOTION_STR_TO_TYPE: dict[str, EmotionType] = {
+    "anger": EmotionType.ANGER,
+    "fear": EmotionType.FEAR,
+    "sadness": EmotionType.SADNESS,
+    "joy": EmotionType.JOY,
+    "surprise": EmotionType.SURPRISE,
+    "disgust": EmotionType.DISGUST,
+    "neutral": EmotionType.NEUTRAL,
+}
+
+
+async def _gemini_text_emotion(text: str) -> EmotionAnalysis | None:
+    """Use Gemini to detect emotion from text. Returns None on failure."""
+    if not settings.GEMINI_API_KEY:
+        return None
+    try:
+        import json
+
+        import google.generativeai as genai
+
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+
+        prompt = _GEMINI_EMOTION_PROMPT.format(text=text)
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: model.generate_content(
+                prompt,
+                generation_config={"response_mime_type": "application/json"},
+            ),
+        )
+        data = json.loads(response.text)
+
+        primary_str = data.get("primary_emotion", "neutral").lower()
+        primary = _EMOTION_STR_TO_TYPE.get(primary_str, EmotionType.NEUTRAL)
+
+        scores: dict[EmotionType, float] = {}
+        for key, val in data.get("scores", {}).items():
+            etype = _EMOTION_STR_TO_TYPE.get(key.lower(), EmotionType.NEUTRAL)
+            scores[etype] = scores.get(etype, 0.0) + float(val)
+
+        # Ensure all emotions present
+        for etype in EmotionType:
+            scores.setdefault(etype, 0.0)
+
+        return EmotionAnalysis(
+            primary_emotion=primary,
+            emotion_scores=scores,
+            intensity=float(data.get("intensity", 0.5)),
+            confidence=float(data.get("confidence", 0.8)),
+            text_segments=[text],
+        )
+    except Exception as exc:
+        log.warning("Gemini text emotion failed, falling back", error=str(exc))
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Helper: map ONNX label string → EmotionType
 # ---------------------------------------------------------------------------
 
@@ -310,10 +395,29 @@ class EmotionAgent(BaseAgent):
             bound_log.warning("Circuit breaker OPEN – returning neutral fallback")
             return _neutral_fallback(text)
 
-        # ---- Prioritized ML Execution ------------------------------------
+        # ---- Text-only path: use Gemini for better accuracy ----------------
+        audio_data = getattr(input_data, "audio_data", None)
+        if audio_data is None and settings.GEMINI_API_KEY:
+            bound_log.info("Text-only input — using Gemini for emotion analysis")
+            try:
+                gemini_result = await asyncio.wait_for(
+                    _gemini_text_emotion(text), timeout=5.0,
+                )
+                if gemini_result is not None:
+                    bound_log.info(
+                        "Gemini emotion analysis successful",
+                        emotion=gemini_result.primary_emotion.value,
+                        confidence=gemini_result.confidence,
+                    )
+                    return gemini_result
+            except TimeoutError:
+                bound_log.warning("Gemini emotion timed out — falling back")
+            except Exception as exc:
+                bound_log.warning("Gemini emotion failed — falling back", error=str(exc))
+
+        # ---- Audio path: ONNX ML Execution ----------------------------------
         # We give ML a "soft budget" of 800ms before falling back.
         # This prevents the instant heuristic from always winning (FIRST_COMPLETED risk).
-        audio_data = getattr(input_data, "audio_data", None)
         ml_task = asyncio.create_task(self._run_ml(text, audio_data=audio_data))
 
         try:
