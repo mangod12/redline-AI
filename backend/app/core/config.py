@@ -43,6 +43,7 @@ class Settings(BaseSettings):
 
     # External services
     ML_SERVICE_URL: str = os.getenv("ML_SERVICE_URL", "http://localhost:8001")
+    GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
     GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
 
     INTENT_MODEL_NAME: str = "distilbert-base-uncased"

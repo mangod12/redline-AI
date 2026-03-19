@@ -152,6 +152,7 @@ jobs:
             POSTGRES_PASSWORD=POSTGRES_PASSWORD:latest
             POSTGRES_USER=POSTGRES_USER:latest
             POSTGRES_DB=POSTGRES_DB:latest
+            GEMINI_API_KEY=GEMINI_API_KEY:latest
 
       - name: Show deployed URL
         run: |
