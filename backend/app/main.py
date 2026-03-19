@@ -184,8 +184,11 @@ app.add_route("/metrics", metrics, include_in_schema=False)
 
 # MCP (Model Context Protocol) — SSE transport
 if settings.ENABLE_MCP:
-    from app.mcp.sse_app import create_mcp_routes  # noqa: E402
-    create_mcp_routes(app)
+    try:
+        from app.mcp.sse_app import create_mcp_routes  # noqa: E402
+        create_mcp_routes(app)
+    except ImportError:
+        log.warning("mcp package not installed — MCP server disabled")
 
 
 # ---------------------------------------------------------------------------

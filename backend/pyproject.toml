@@ -32,6 +32,7 @@ dependencies = [
     "aiofiles>=23.0.0",
     "pybreaker>=1.0.0",
     "filelock>=3.13.0",
+    "mcp>=1.0.0",
 ]
 requires-python = ">=3.11"
 
