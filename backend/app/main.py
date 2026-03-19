@@ -182,6 +182,11 @@ app.include_router(twilio_router, prefix="/twilio", tags=["twilio"])
 app.include_router(websocket_router, prefix="/ws", tags=["websockets"])
 app.add_route("/metrics", metrics, include_in_schema=False)
 
+# MCP (Model Context Protocol) — SSE transport
+if settings.ENABLE_MCP:
+    from app.mcp.sse_app import create_mcp_routes  # noqa: E402
+    create_mcp_routes(app)
+
 
 # ---------------------------------------------------------------------------
 # Health

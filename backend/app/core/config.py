@@ -71,6 +71,9 @@ class Settings(BaseSettings):
         ] if origin
     ]
 
+    # ---- MCP (Model Context Protocol) ------------------------------------
+    ENABLE_MCP: bool = os.getenv("ENABLE_MCP", "true").lower() == "true"
+
     # ---- Docs -----------------------------------------------------------
     ENABLE_DOCS: bool = os.getenv("ENABLE_DOCS", "true").lower() == "true"
 
