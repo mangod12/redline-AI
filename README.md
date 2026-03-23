@@ -1,6 +1,6 @@
 # Redline AI - Intelligent Emergency Response Platform
 
-Originally developed at Ananya-Ghosh05/Redline-AI as a team project. This fork represents continued independent development including model retraining, Gemini integration, CI/CD pipeline, and production deployment.
+Originally developed at Ananya-Ghosh05/Redline-AI as a team project. This fork represents Gemini integration, CI/CD pipeline, and production deployment.
 
 [![CI](https://github.com/mangod12/redline-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/mangod12/redline-AI/actions/workflows/ci.yml)
 [![Deploy](https://github.com/mangod12/redline-AI/actions/workflows/deploy-gcp.yml/badge.svg)](https://github.com/mangod12/redline-AI/actions/workflows/deploy-gcp.yml)
