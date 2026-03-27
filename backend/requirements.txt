@@ -61,7 +61,7 @@ pydub>=0.25.1
 torch~=2.10.0
 torchaudio>=2.1.0
 soundfile>=0.12.1
-aiosqlite~=0.20.0
+aiosqlite~=0.22.1
 
 # ---- Google Cloud --------------------------------------------------------
 google-cloud-storage~=2.19.0
