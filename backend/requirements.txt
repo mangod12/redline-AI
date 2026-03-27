@@ -16,7 +16,7 @@ redis~=7.2.0
 fakeredis~=2.21.0
 
 # ---- Auth ---------------------------------------------------------------
-python-jose[cryptography]~=3.3.0
+python-jose[cryptography]~=3.5.0
 bcrypt~=4.3.0
 python-multipart~=0.0.9
 
