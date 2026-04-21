@@ -60,6 +60,25 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
+    # Verify tenant has access to this call
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.models.emergency_call import EmergencyCall
+        from sqlalchemy import select
+
+        user_tenant = payload.get("tenant_id")
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(EmergencyCall).where(EmergencyCall.call_id == call_id)
+            )
+            call_record = result.scalar_one_or_none()
+            if call_record and hasattr(call_record, 'tenant_id') and call_record.tenant_id:
+                if str(call_record.tenant_id) != str(user_tenant):
+                    await websocket.close(code=4003, reason="Access denied to this call")
+                    return
+    except Exception as exc:
+        logger.warning(f"Tenant check skipped for call {call_id}: {exc}")
+
     await manager.connect(websocket, call_id)
     
     redis = get_redis_client()
