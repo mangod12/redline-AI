@@ -19,9 +19,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.redis_client import get_redis_client
 from app.core.schemas import Transcript
@@ -42,8 +43,8 @@ router = APIRouter()
 
 
 class EmergencyJSONRequest(BaseModel):
-    transcript: str
-    caller_id: Optional[str] = None
+    transcript: str = Field(..., max_length=10_000)
+    caller_id: Optional[str] = Field(default=None, max_length=64)
 
 
 # ---------------------------------------------------------------------------
@@ -112,13 +113,28 @@ async def process_emergency(
             ) from exc
 
     if audio_file is not None:
+        # Validate content type
+        if audio_file.content_type and audio_file.content_type not in settings.ALLOWED_AUDIO_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=f"Unsupported audio format: {audio_file.content_type}",
+            )
+
         whisper_svc = getattr(request.app.state, "whisper_service", None)
         if whisper_svc is None or not whisper_svc.is_ready():
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Whisper STT service is not available",
             )
-        audio_bytes = await audio_file.read()
+
+        # Read with size limit
+        audio_bytes = await audio_file.read(settings.MAX_AUDIO_BYTES + 1)
+        if len(audio_bytes) > settings.MAX_AUDIO_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Audio file exceeds {settings.MAX_AUDIO_BYTES // (1024 * 1024)} MB limit",
+            )
+
         try:
             transcript = await whisper_svc.transcribe(audio_bytes)
         except Exception as exc:
@@ -137,6 +153,12 @@ async def process_emergency(
         )
 
     transcript = resolved_transcript.strip()
+
+    if len(transcript) > settings.MAX_TRANSCRIPT_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Transcript exceeds {settings.MAX_TRANSCRIPT_LENGTH} character limit.",
+        )
 
     # ------------------------------------------------------------------
     # 2. Run pipeline (intent + emotion in parallel, then severity + dispatch)
@@ -218,9 +240,14 @@ async def process_emergency(
         "responder": responder,
         "latency_ms": latency_ms,
     }
-    asyncio.create_task(
+    def _on_cache_done(task: asyncio.Task) -> None:
+        if task.exception():
+            log.warning("Background cache write failed: %s", task.exception())
+
+    cache_task = asyncio.create_task(
         cache_call(get_redis_client(), str(call_id), call_data)
     )
+    cache_task.add_done_callback(_on_cache_done)
 
     fallback_used = intent_fallback or emotion_fallback
     call_store.add_call(

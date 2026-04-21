@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # No insecure default – app logs a warning at startup if the default
     # placeholder is still present (see app/main.py lifespan).
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 120  # 2 hours
     TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
     
     # DB - Set USE_SQLITE=false in .env to use PostgreSQL in production
@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         if self.USE_SQLITE:
+            if self.APP_ENV.lower() == "production":
+                raise RuntimeError(
+                    "SQLite is not supported in production. "
+                    "Set USE_SQLITE=false and configure PostgreSQL."
+                )
             return "sqlite+aiosqlite:///./redline.db"
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
     
@@ -44,11 +49,25 @@ class Settings(BaseSettings):
     INTENT_ONNX_PATH: str = str(
         Path(__file__).resolve().parents[2] / "ml" / "intent_model.onnx"
     )
+    EMOTION_ONNX_PATH: str = str(
+        Path(__file__).resolve().parents[2] / "ml" / "emotion_model.onnx"
+    )
+    EMOTION_PT_PATH: str = str(
+        Path(__file__).resolve().parents[2] / "ml" / "emotion_model.pt"
+    )
 
     # ---- Whisper STT (local, no paid API) ---------------------------------
     # Model size: tiny | base | small | medium | large
     # "small" balances accuracy + speed on CPU.  Override via WHISPER_MODEL_SIZE env.
     WHISPER_MODEL_SIZE: str = "small"
+
+    # ---- Upload limits ------------------------------------------------
+    MAX_AUDIO_BYTES: int = 25 * 1024 * 1024  # 25 MB
+    ALLOWED_AUDIO_TYPES: list[str] = [
+        "audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4",
+        "audio/webm", "audio/ogg", "audio/flac",
+    ]
+    MAX_TRANSCRIPT_LENGTH: int = 10_000  # characters
 
     # ---- CORS -----------------------------------------------------------
     # Comma-separated list of allowed origins, e.g.:

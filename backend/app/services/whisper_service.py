@@ -29,23 +29,30 @@ class WhisperService:
     # ------------------------------------------------------------------
 
     def initialize(self) -> None:
-        """Load the Whisper model (blocking – call from thread or lifespan).
+        """Load the Whisper model (blocking -- call from thread or lifespan).
 
         Uses an exclusive file lock so that when multiple Gunicorn workers start
         concurrently only one downloads the model; the rest wait and load the
         already-cached copy.
         """
-        import fcntl
+        import tempfile
         import whisper  # type: ignore[import]
 
-        log.info("Loading Whisper model '%s' …", self._model_size)
-        lock_path = "/tmp/.whisper_download.lock"
-        with open(lock_path, "w") as lock_file:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-            try:
-                self._model = whisper.load_model(self._model_size)
-            finally:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        try:
+            from filelock import FileLock
+        except ImportError:
+            # Fallback: load without locking (single-worker or dev mode)
+            log.warning("filelock not installed; loading Whisper without lock")
+            log.info("Loading Whisper model '%s' ...", self._model_size)
+            self._model = whisper.load_model(self._model_size)
+            log.info("Whisper model '%s' loaded.", self._model_size)
+            return
+
+        log.info("Loading Whisper model '%s' ...", self._model_size)
+        lock_path = os.path.join(tempfile.gettempdir(), ".whisper_download.lock")
+        lock = FileLock(lock_path, timeout=300)
+        with lock:
+            self._model = whisper.load_model(self._model_size)
         log.info("Whisper model '%s' loaded.", self._model_size)
 
     def is_ready(self) -> bool:
