@@ -270,13 +270,12 @@ class EmotionAgent(BaseAgent):
 
     Accepts a Transcript, returns an EmotionAnalysis.
 
-    Execution strategy:
-      1. If circuit breaker is OPEN → immediate neutral fallback.
-      2. Schedule both ML inference and heuristic fallback as concurrent tasks.
-      3. asyncio.wait with FIRST_COMPLETED and 3 s overall timeout.
-      4. If ML wins AND confidence ≥ threshold → return ML result.
-      5. Otherwise return heuristic result.
-      6. Any exception inside ML coroutine → trip circuit breaker.
+    Execution strategy (Prioritized ML):
+      1. If circuit breaker is OPEN -> immediate neutral fallback.
+      2. Grant ML inference 800ms soft budget via asyncio.wait_for.
+      3. If ML completes with confidence >= threshold -> return ML result.
+      4. Otherwise fall back to keyword heuristic (2s budget).
+      5. Any exception inside ML coroutine -> trip circuit breaker.
     """
 
     def __init__(
@@ -370,13 +369,6 @@ class EmotionAgent(BaseAgent):
         start = time.perf_counter()
         try:
             mfcc = _text_to_mock_mfcc()  # replaced by real audio featuriser in prod
-
-            @_ml_breaker
-            def _protected_infer() -> dict[str, float]:
-                # NOTE: synchronous wrapper required by pybreaker;
-                # we call the async loader from inside run_in_executor via
-                # a small helper below instead.
-                pass
 
             # Run inference through the loader (already async + threadpool)
             raw_scores = await asyncio.wait_for(
