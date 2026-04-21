@@ -139,6 +139,10 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+from app.middleware.security_headers import SecurityHeadersMiddleware
+
+app.add_middleware(SecurityHeadersMiddleware)
+
 # ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
@@ -162,17 +166,19 @@ app.add_route("/metrics", metrics, include_in_schema=False)
 @app.get("/health", tags=["health"])
 async def health_check() -> dict:
     from app.core.redis_client import get_redis_client
+    from app.core.database import check_db_health
 
     redis = get_redis_client()
     emo_loader = getattr(app.state, "emotion_loader", None)
     int_loader = getattr(app.state, "intent_loader", None)
     whisper_svc = getattr(app.state, "whisper_service", None)
+    db_ok = await check_db_health()
     return {
-        "status": "ok",
+        "status": "ok" if db_ok else "degraded",
         "redis": "connected" if redis else "disconnected",
+        "database": "connected" if db_ok else "disconnected",
         "emotion_model": "ready" if (emo_loader and emo_loader.is_ready()) else "unavailable",
         "intent_model": "ready" if (int_loader and int_loader.is_ready()) else "unavailable",
         "whisper_model": "ready" if (whisper_svc and whisper_svc.is_ready()) else "unavailable",
-        "database": "unchecked",
     }
 
