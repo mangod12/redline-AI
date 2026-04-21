@@ -9,19 +9,42 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ---- Twilio webhook signature validation ----
+const twilio = require("twilio");
+const config = require("./config");
+
+function validateTwilioWebhook(req, res, next) {
+  if (!config.twilio.authToken) {
+    console.warn("TWILIO_AUTH_TOKEN not set - skipping signature validation");
+    return next();
+  }
+  const signature = req.headers["x-twilio-signature"] || "";
+  const url = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+  const valid = twilio.validateRequest(
+    config.twilio.authToken,
+    signature,
+    url,
+    req.body
+  );
+  if (!valid) {
+    return res.status(403).json({ error: "Invalid Twilio signature" });
+  }
+  next();
+}
+
 // ──── Health check ────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "redline-ai-ivr" });
 });
 
 // ──── Twilio webhook – initial call ───────────────────────────────
-app.post("/api/calls/incoming", (req, res) => {
+app.post("/api/calls/incoming", validateTwilioWebhook, (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
   res.type("text/xml").send(ivr.buildGreetingTwiml(baseUrl));
 });
 
 // ──── Twilio webhook – recording completed ────────────────────────
-app.post("/api/calls/handle-recording", async (req, res) => {
+app.post("/api/calls/handle-recording", validateTwilioWebhook, async (req, res) => {
   try {
     const { From: callerNumber, RecordingUrl, Latitude, Longitude } = req.body;
 

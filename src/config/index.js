@@ -3,9 +3,7 @@ require("dotenv").config();
 module.exports = {
   port: process.env.PORT || 3000,
   database: {
-    connectionString:
-      process.env.DATABASE_URL ||
-      "postgresql://user:password@localhost:5432/redline_ai",
+    connectionString: process.env.DATABASE_URL,
   },
   twilio: {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
