@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 import uvicorn
 
+from app.core.config import settings
 from ..core.orchestrator import Orchestrator
 from ..plugins.registry import PluginRegistry
 from ..core.memory.redis_client import RedisClient
@@ -74,10 +75,10 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 

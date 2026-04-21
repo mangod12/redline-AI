@@ -148,9 +148,9 @@ from app.dashboard.routes import router as dashboard_router  # noqa: E402
 from app.api.v1.endpoints.emergency import router as emergency_router  # noqa: E402
 
 app.include_router(api_router, prefix=settings.API_V1_STR, dependencies=[Depends(require_jwt_token)])
-app.include_router(emergency_router)
+app.include_router(emergency_router, dependencies=[Depends(require_jwt_token)])
 app.include_router(websocket_router, prefix="/ws", tags=["websockets"])
-app.include_router(dashboard_router, tags=["dashboard"])
+app.include_router(dashboard_router, tags=["dashboard"], dependencies=[Depends(require_jwt_token)])
 app.add_route("/metrics", metrics, include_in_schema=False)
 
 
