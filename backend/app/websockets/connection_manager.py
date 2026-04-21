@@ -50,7 +50,7 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
         return
 
     try:
-        from jose import jwt, JWTError
+        import jwt
         from app.core.config import settings
         from app.core.security import ALGORITHM
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])

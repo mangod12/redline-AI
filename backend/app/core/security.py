@@ -6,7 +6,8 @@ from typing import Any, Union
 import structlog
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError as JWTError
 from passlib.context import CryptContext
 from slowapi import Limiter
 from slowapi.util import get_remote_address
