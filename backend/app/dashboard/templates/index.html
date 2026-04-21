@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold tracking-tight">Dispatcher Dashboard</h1>
+      <p id="last-updated" class="text-sm text-slate-400">Refreshing...</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+      <div class="rounded-xl bg-slate-900 border border-slate-800 p-3">
+        <p class="text-xs text-slate-400">Calls (live)</p>
+        <p id="stat-total" class="text-2xl font-semibold">0</p>
+      </div>
+      <div class="rounded-xl bg-slate-900 border border-slate-800 p-3">
+        <p class="text-xs text-slate-400">Critical</p>
+        <p id="stat-critical" class="text-2xl font-semibold text-rose-400">0</p>
+      </div>
+      <div class="rounded-xl bg-slate-900 border border-slate-800 p-3">
+        <p class="text-xs text-slate-400">High</p>
+        <p id="stat-high" class="text-2xl font-semibold text-amber-300">0</p>
+      </div>
+      <div class="rounded-xl bg-slate-900 border border-slate-800 p-3">
+        <p class="text-xs text-slate-400">Any Fallback</p>
+        <p id="stat-fallback" class="text-2xl font-semibold text-cyan-300">0%</p>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-800/70 text-slate-300 text-xs uppercase">
+          <tr>
+            <th class="px-3 py-3 text-left">Call ID</th>
+            <th class="px-3 py-3 text-left">Transcript</th>
+            <th class="px-3 py-3 text-left">Intent (conf)</th>
+            <th class="px-3 py-3 text-left">Emotion</th>
+            <th class="px-3 py-3 text-left">Severity</th>
+            <th class="px-3 py-3 text-left">Responder</th>
+            <th class="px-3 py-3 text-left">Fallback Flags</th>
+            <th class="px-3 py-3 text-left">Latency</th>
+          </tr>
+        </thead>
+        <tbody id="calls-body" class="divide-y divide-slate-800">
+          <tr>
+            <td colspan="8" class="px-3 py-8 text-center text-slate-400">Waiting for calls...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function sevClass(level) {
+      if (level === "critical") return "text-rose-400";
+      if (level === "high") return "text-amber-300";
+      if (level === "medium") return "text-yellow-300";
+      return "text-emerald-300";
+    }
+
+    function trimText(text, maxLen) {
+      if (!text) return "";
+      return text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
+    }
+
+    function renderRow(c) {
+      const fallbackText = "any=" + (c.fallback_used ? "Y" : "N") +
+        " | intent=" + (c.intent_fallback ? "Y" : "N") +
+        " | emotion=" + (c.emotion_fallback ? "Y" : "N");
+
+      return `
+        <tr class="hover:bg-slate-800/40">
+          <td class="px-3 py-2 font-mono text-xs text-slate-300">${c.call_id}</td>
+          <td class="px-3 py-2 text-slate-200 max-w-xl">${trimText(c.transcript || "", 120)}</td>
+          <td class="px-3 py-2 text-slate-200">${c.intent} (${((c.intent_confidence || 0) * 100).toFixed(1)}%)</td>
+          <td class="px-3 py-2 text-slate-200">${c.emotion}</td>
+          <td class="px-3 py-2 font-semibold ${sevClass(c.severity)}">${c.severity}</td>
+          <td class="px-3 py-2 text-slate-200">${c.responder}</td>
+          <td class="px-3 py-2 text-slate-300 text-xs">${fallbackText}</td>
+          <td class="px-3 py-2 text-cyan-300">${Number(c.latency_ms || 0).toFixed(0)} ms</td>
+        </tr>
+      `;
+    }
+
+    async function refresh() {
+      try {
+        const response = await fetch("/api/v1/calls/live?limit=50");
+        const data = await response.json();
+        const calls = data.calls || [];
+
+        document.getElementById("last-updated").textContent = "Updated " + new Date().toLocaleTimeString();
+        document.getElementById("stat-total").textContent = String(calls.length);
+        document.getElementById("stat-critical").textContent = String(calls.filter(c => c.severity === "critical").length);
+        document.getElementById("stat-high").textContent = String(calls.filter(c => c.severity === "high").length);
+
+        const fallbackRate = calls.length
+          ? Math.round((calls.filter(c => c.fallback_used).length / calls.length) * 100)
+          : 0;
+        document.getElementById("stat-fallback").textContent = fallbackRate + "%";
+
+        const body = document.getElementById("calls-body");
+        if (!calls.length) {
+          body.innerHTML = '<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">Waiting for calls...</td></tr>';
+          return;
+        }
+        body.innerHTML = calls.map(renderRow).join("");
+      } catch (error) {
+        document.getElementById("last-updated").textContent = "Refresh failed";
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>
