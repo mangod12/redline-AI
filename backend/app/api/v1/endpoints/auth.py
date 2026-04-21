@@ -1,12 +1,13 @@
 from datetime import timedelta
 from typing import Any
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core import security
 from app.core.config import settings
+from app.core.security import limiter
 from app.api.deps import get_db, get_current_active_superuser
 from app.schemas.user import Token, UserResponse, UserCreate
 from app.models.user import User
@@ -15,7 +16,9 @@ from app.models.tenant import Tenant
 router = APIRouter()
 
 @router.post("/login", response_model=Token)
+@limiter.limit("5/minute")
 async def login_access_token(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
@@ -24,9 +27,9 @@ async def login_access_token(
     """
     result = await db.execute(select(User).where(User.email == form_data.username))
     user = result.scalar_one_or_none()
-    
+
     if not user or not security.verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Incorrect email or password")
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return {
