@@ -8,6 +8,10 @@ class TranslationService:
     """Translation service using LibreTranslate (Open Source)."""
 
     def __init__(self, api_url: str = "https://libretranslate.de/translate"):
+        from urllib.parse import urlparse
+        parsed = urlparse(api_url)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(f"Invalid translation service URL scheme: {parsed.scheme}")
         self.api_url = api_url
 
     async def translate(self, text: str, source_lang: str) -> str:

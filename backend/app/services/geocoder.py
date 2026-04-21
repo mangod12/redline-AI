@@ -9,7 +9,7 @@ class Geocoder:
     def __init__(self):
         self.base_url = "https://nominatim.openstreetmap.org/search"
         self.headers = {
-            "User-Agent": "RedlineAI-StudentProject (contact@example.com)"
+            "User-Agent": "RedlineAI-EmergencyGeocoder/1.0"
         }
 
     async def geocode(self, text: str) -> dict:
@@ -19,6 +19,10 @@ class Geocoder:
         """
         if not text:
             return {"latitude": 0.0, "longitude": 0.0, "confidence": 0.0, "query": text}
+
+        # Sanitize: limit length, strip control characters
+        import re as _re
+        text = _re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text.strip())[:500]
 
         params = {
             "q": text,

@@ -61,7 +61,7 @@ async def analyze_audio(file: UploadFile = File(...)):
         return result
     except Exception as e:
         logger.error(f"Audio analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Audio analysis failed")
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest):

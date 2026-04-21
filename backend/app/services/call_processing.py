@@ -84,7 +84,8 @@ class CallProcessor:
         # call ML analysis
         try:
             analysis = await self.ml_client.analyze(str(call_id), translated, language)
-        except Exception:
+        except Exception as exc:
+            logger.error("ML analysis failed for call %s: %s", call_id, exc, exc_info=True)
             analysis = {}
         # store analysis
         analysis_data = {
