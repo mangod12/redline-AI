@@ -4,7 +4,7 @@ uvicorn[standard]~=0.34.0
 gunicorn~=23.0.0
 
 # ---- Data validation ----------------------------------------------------
-pydantic~=2.10.0
+pydantic>=2.10,<2.14
 pydantic-settings~=2.3.0
 email-validator~=2.2.0
 sqlalchemy[asyncio]~=2.0.30
