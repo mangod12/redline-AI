@@ -315,7 +315,7 @@ def _resource_recent_calls() -> ReadResourceResult:
     """Return recent calls from the in-memory store."""
     from app.dashboard import call_store
 
-    calls = call_store.get_recent(limit=50)
+    calls = call_store.get_recent_sync(limit=50)
     return ReadResourceResult(
         contents=[TextResourceContents(uri="redline://calls/recent", text=json.dumps(calls, indent=2))],
     )

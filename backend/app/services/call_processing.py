@@ -7,7 +7,7 @@ from app.core.events import publish_call_event
 from app.models.severity_report import SeverityReport
 from app.services import call_service
 from app.services.base import CRUDBase
-from app.services.dispatch_service import DispatchService
+from app.services.dispatch_service import select_responder
 from app.services.geocoder import Geocoder
 from app.services.ml_client import MLClient
 from app.services.severity_engine import SeverityEngine
@@ -25,7 +25,7 @@ class CallProcessor:
         self.ml_client = MLClient()
         self.severity_engine = SeverityEngine()
         self.geocoder = Geocoder()
-        self.dispatcher = DispatchService()
+        # dispatch uses the module-level select_responder() function
 
     async def save_transcript(
         self,
@@ -137,7 +137,8 @@ class CallProcessor:
             await publish_call_event(call_id, "LOCATION_RESOLVED", geo)
 
         # dispatch recommendation
-        dispatch_info = await self.dispatcher.recommend(score, analysis_data["incident_type"], geo)
+        responder = await select_responder(analysis_data["incident_type"], category)
+        dispatch_info = {"unit_id": responder, "eta_minutes": None, "priority": category}
         dispatch_record = await call_service.dispatch.create(
             db,
             obj_in={

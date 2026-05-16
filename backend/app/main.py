@@ -119,6 +119,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # ----------- Shutdown -----------
+    from app.core.event_listener import stop_event_listener
+    await stop_event_listener()
     await close_redis()
     if getattr(app.state, "emotion_loader", None) is not None:
         await app.state.emotion_loader.shutdown()
@@ -203,36 +205,28 @@ async def health_check() -> dict:
     from app.core.redis_client import get_redis_client
 
     redis = get_redis_client()
-    emo_loader = getattr(app.state, "emotion_loader", None)
-    int_loader = getattr(app.state, "intent_loader", None)
-    whisper_svc = getattr(app.state, "whisper_service", None)
 
     # Database connectivity check
-    db_status = "disconnected"
+    db_ok = False
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-        db_status = "connected"
+        db_ok = True
     except Exception:
-        db_status = "error"
+        pass
 
     # Redis check
-    redis_status = "disconnected"
+    redis_ok = False
     if redis:
         try:
             await redis.ping()
-            redis_status = "connected"
+            redis_ok = True
         except Exception:
-            redis_status = "error"
+            pass
 
-    all_ok = db_status == "connected" and redis_status != "error"
+    all_ok = db_ok and redis_ok
 
     return {
         "status": "ok" if all_ok else "degraded",
-        "redis": redis_status,
-        "database": db_status,
-        "emotion_model": "ready" if (emo_loader and emo_loader.is_ready()) else "unavailable",
-        "intent_model": "ready" if (int_loader and int_loader.is_ready()) else "unavailable",
-        "whisper_model": "ready" if (whisper_svc and whisper_svc.is_ready()) else "unavailable",
     }
 

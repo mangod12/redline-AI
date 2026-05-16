@@ -12,15 +12,19 @@ class MLClient:
 
     def __init__(self, base_url: str | None = None):
         self.base_url = base_url or settings.ML_SERVICE_URL
+        self._client = httpx.AsyncClient(timeout=10.0)
+
+    async def close(self) -> None:
+        """Close the underlying HTTP client."""
+        await self._client.aclose()
 
     async def analyze(self, call_id: str, transcript: str, language: str) -> dict:
         url = f"{self.base_url.rstrip('/')}/analyze"
         payload = {"call_id": call_id, "transcript": transcript, "language": language}
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(url, json=payload)
-                resp.raise_for_status()
-                return resp.json()
+            resp = await self._client.post(url, json=payload)
+            resp.raise_for_status()
+            return resp.json()
         except Exception as e:
             logger.error(f"ML service call failed: {e}")
             # rethrow so caller can decide what to do

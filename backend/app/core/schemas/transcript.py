@@ -1,6 +1,6 @@
 """Pydantic models for transcript data."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +11,7 @@ class Transcript(BaseModel):
     text: str = Field(..., description="The transcribed text")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the transcription")
     language: str = Field(default="en", description="Language code of the transcript")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of transcription")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp of transcription")
     audio_duration: float | None = Field(None, description="Duration of the audio in seconds")
     speaker_id: str | None = Field(None, description="Identifier for the speaker if available")
     audio_data: bytes | None = Field(None, description="Raw audio bytes for acoustic analysis", exclude=True)

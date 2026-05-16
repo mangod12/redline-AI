@@ -74,5 +74,22 @@ def start_event_listener():
 
     # schedule the listener in the running event loop (Python 3.10+ safe)
     loop = asyncio.get_running_loop()
-    loop.create_task(_listener())
+    global _listener_task
+    _listener_task = loop.create_task(_listener())
+
+
+_listener_task: asyncio.Task | None = None
+
+
+async def stop_event_listener() -> None:
+    """Cancel the background event listener task gracefully."""
+    global _listener_task
+    if _listener_task is not None and not _listener_task.done():
+        _listener_task.cancel()
+        try:
+            await _listener_task
+        except asyncio.CancelledError:
+            pass
+        _listener_task = None
+    logger.info("Event listener stopped")
 
