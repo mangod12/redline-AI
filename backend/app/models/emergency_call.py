@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, Integer, String, Text, Uuid
 
@@ -11,11 +11,7 @@ from app.models.base import Base
 
 
 class EmergencyCall(Base):
-    """Stores one processed emergency call with all pipeline outputs.
-
-    Deliberately NOT a TenantModel — emergency calls are global in the MVP
-    and do not require per-tenant scoping.
-    """
+    """Stores one processed emergency call with all pipeline outputs."""
 
     __tablename__ = "emergency_calls"
 
@@ -27,6 +23,9 @@ class EmergencyCall(Base):
         index=True,
         nullable=False,
     )
+
+    # Tenant isolation
+    tenant_id: str | None = Column(String(255), nullable=True, index=True)
 
     # Optional caller identifier supplied by the caller or the phone system
     caller_id: str | None = Column(String(255), nullable=True, index=True)
@@ -43,7 +42,7 @@ class EmergencyCall(Base):
     # Timestamps
     created_at: datetime = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False,
         index=True,
     )

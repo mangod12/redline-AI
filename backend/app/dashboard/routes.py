@@ -67,7 +67,7 @@ async def dashboard(request: Request) -> HTMLResponse:
 @router.get("/api/v1/calls/live")
 async def calls_live(limit: int = 50, _: dict = Depends(require_jwt_token)):
     """Return the most recent emergency call records as JSON (requires JWT)."""
-    return {"calls": call_store.get_recent(limit=min(limit, 100))}
+    return {"calls": await call_store.get_recent(limit=min(limit, 100))}
 
 
 @router.post("/api/v1/calls/seed-demo", include_in_schema=False)

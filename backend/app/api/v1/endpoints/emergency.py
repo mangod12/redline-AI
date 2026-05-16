@@ -140,37 +140,36 @@ async def process_emergency_core(
     # 2. Run pipeline (intent + emotion, then severity + dispatch)
     # ------------------------------------------------------------------
 
-    intent = "unknown"
-    intent_confidence = 0.0
-    intent_fallback = True
-    try:
-        from app.agents.intent.intent_agent import IntentAgent
+    # Run intent and emotion analysis concurrently
+    async def _run_intent() -> tuple[str, float, bool]:
+        try:
+            from app.agents.intent.intent_agent import IntentAgent
 
-        intent_loader = getattr(request.app.state, "intent_loader", None)
-        intent_agent = IntentAgent(loader=intent_loader)
-        intent_result = await intent_agent.process(Transcript(text=transcript, confidence=1.0))
-        intent = intent_result.intent.value
-        intent_confidence = float(intent_result.confidence)
-        intent_fallback = bool(intent_result.fallback_used)
-    except Exception as exc:
-        log.warning("IntentAgent failed, using unknown fallback: %s", exc)
+            intent_loader = getattr(request.app.state, "intent_loader", None)
+            intent_agent = IntentAgent(loader=intent_loader)
+            intent_result = await intent_agent.process(Transcript(text=transcript, confidence=1.0))
+            return intent_result.intent.value, float(intent_result.confidence), bool(intent_result.fallback_used)
+        except Exception as exc:
+            log.warning("IntentAgent failed, using unknown fallback: %s", exc)
+            return "unknown", 0.0, True
 
-    emotion_label = "neutral"
-    emotion_confidence = 0.0
-    emotion_fallback = True
-    try:
-        from app.agents.emotion.emotion_agent import EmotionAgent
+    async def _run_emotion() -> tuple[str, float, bool]:
+        try:
+            from app.agents.emotion.emotion_agent import EmotionAgent
 
-        emotion_loader = getattr(request.app.state, "emotion_loader", None)
-        agent = EmotionAgent(loader=emotion_loader)
-        emotion_result = await agent.process(
-            Transcript(text=transcript, confidence=1.0, audio_data=audio_bytes)
-        )
-        emotion_label = emotion_result.primary_emotion.value
-        emotion_confidence = float(emotion_result.confidence)
-        emotion_fallback = emotion_confidence <= 0.0
-    except Exception as exc:
-        log.warning("EmotionAgent failed, using neutral fallback: %s", exc)
+            emotion_loader = getattr(request.app.state, "emotion_loader", None)
+            agent = EmotionAgent(loader=emotion_loader)
+            emotion_result = await agent.process(
+                Transcript(text=transcript, confidence=1.0, audio_data=audio_bytes)
+            )
+            return emotion_result.primary_emotion.value, float(emotion_result.confidence), emotion_result.confidence <= 0.0
+        except Exception as exc:
+            log.warning("EmotionAgent failed, using neutral fallback: %s", exc)
+            return "neutral", 0.0, True
+
+    (intent, intent_confidence, intent_fallback), (emotion_label, emotion_confidence, emotion_fallback) = (
+        await asyncio.gather(_run_intent(), _run_emotion())
+    )
 
     severity = await compute_severity(transcript, emotion_label)
     responder = await select_responder(intent, severity)

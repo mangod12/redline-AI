@@ -114,8 +114,10 @@ class IntentModelLoader:
     def _predict_sync(self, text: str) -> np.ndarray:
         import numpy as np
 
-        assert self._tokenizer is not None
-        assert self._session is not None
+        if self._tokenizer is None:
+            raise RuntimeError("Tokenizer is not initialized")
+        if self._session is None:
+            raise RuntimeError("ONNX session is not initialized")
 
         inputs = self._tokenizer(
             text,
