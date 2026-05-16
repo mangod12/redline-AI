@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -24,5 +24,5 @@ class DispatchReport(BaseModel):
     location: Optional[str] = Field(None, description="Location information if available")
     estimated_response_time: Optional[str] = Field(None, description="Estimated response time")
     reasoning: str = Field(..., description="Explanation of the dispatch decision")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of the report")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp of the report")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in the dispatch recommendation")

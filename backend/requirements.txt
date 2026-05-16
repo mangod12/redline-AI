@@ -10,6 +10,7 @@ pydantic-settings>=2.1.0
 email-validator>=2.1.0
 sqlalchemy[asyncio]>=2.0.23
 asyncpg>=0.29.0
+aiosqlite>=0.20.0
 alembic>=1.13.0
 
 # ---- Cache / Pub-Sub ----------------------------------------------------
@@ -54,7 +55,6 @@ pytest-asyncio>=0.21.1
 httpx>=0.25.2
 respx>=0.20.0
 groq>=0.4.2
-openai-whisper>=20231117
 pydub>=0.25.1
 torch>=2.1.0
 torchaudio>=2.1.0

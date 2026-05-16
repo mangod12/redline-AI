@@ -74,7 +74,7 @@ class WhisperService:
         if not self.is_ready():
             raise RuntimeError("WhisperService not initialised")
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None,
             functools.partial(self._sync_transcribe, audio_bytes),

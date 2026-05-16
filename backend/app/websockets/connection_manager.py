@@ -49,6 +49,13 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
         await websocket.close(code=4001, reason="Missing authentication token")
         return
 
+    # Validate call_id format (must be valid UUID)
+    import re
+    uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.I)
+    if not uuid_pattern.match(call_id):
+        await websocket.close(code=4002, reason="Invalid call_id format")
+        return
+
     try:
         import jwt
         from app.core.config import settings
@@ -77,7 +84,9 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
                     await websocket.close(code=4003, reason="Access denied to this call")
                     return
     except Exception as exc:
-        logger.warning(f"Tenant check skipped for call {call_id}: {exc}")
+        logger.error(f"Tenant verification failed for call {call_id}: {exc}")
+        await websocket.close(code=4503, reason="Tenant verification unavailable")
+        return
 
     await manager.connect(websocket, call_id)
     

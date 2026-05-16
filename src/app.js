@@ -5,6 +5,8 @@ const express = require("express");
 const ivr = require("./ivr");
 const db = require("./db");
 
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "";
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -32,6 +34,26 @@ function validateTwilioWebhook(req, res, next) {
   next();
 }
 
+/**
+ * Simple API key authentication for REST endpoints.
+ * Set API_KEY env var. If not set, all requests are rejected in production.
+ */
+function requireApiKey(req, res, next) {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    // In development without API_KEY set, allow requests with a warning
+    if (process.env.NODE_ENV !== "production") {
+      return next();
+    }
+    return res.status(503).json({ error: "API_KEY not configured" });
+  }
+  const provided = req.headers["x-api-key"] || req.query.api_key;
+  if (!provided || provided !== apiKey) {
+    return res.status(401).json({ error: "Invalid or missing API key" });
+  }
+  next();
+}
+
 // ──── Health check ────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "redline-ai-ivr" });
@@ -39,7 +61,7 @@ app.get("/health", (_req, res) => {
 
 // ──── Twilio webhook – initial call ───────────────────────────────
 app.post("/api/calls/incoming", validateTwilioWebhook, (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const baseUrl = PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
   res.type("text/xml").send(ivr.buildGreetingTwiml(baseUrl));
 });
 
@@ -70,7 +92,7 @@ app.post("/api/calls/handle-recording", validateTwilioWebhook, async (req, res) 
 });
 
 // ──── REST API – manual call submission (for testing / integrations) ──
-app.post("/api/calls", async (req, res) => {
+app.post("/api/calls", requireApiKey, async (req, res) => {
   try {
     const record = await ivr.processCall(req.body);
     res.status(201).json(record);
@@ -81,7 +103,7 @@ app.post("/api/calls", async (req, res) => {
 });
 
 // ──── REST API – list calls (with optional filters) ───────────────
-app.get("/api/calls", async (req, res) => {
+app.get("/api/calls", requireApiKey, async (req, res) => {
   try {
     const calls = await db.listCalls({
       severity: req.query.severity,
@@ -97,7 +119,7 @@ app.get("/api/calls", async (req, res) => {
 });
 
 // ──── REST API – get single call ──────────────────────────────────
-app.get("/api/calls/:id", async (req, res) => {
+app.get("/api/calls/:id", requireApiKey, async (req, res) => {
   try {
     const call = await db.getCallById(req.params.id);
     if (!call) return res.status(404).json({ error: "Call not found" });
@@ -109,7 +131,7 @@ app.get("/api/calls/:id", async (req, res) => {
 });
 
 // ──── REST API – update call status ───────────────────────────────
-app.patch("/api/calls/:id/status", async (req, res) => {
+app.patch("/api/calls/:id/status", requireApiKey, async (req, res) => {
   try {
     const { status } = req.body;
     if (!["pending", "dispatched", "resolved"].includes(status)) {

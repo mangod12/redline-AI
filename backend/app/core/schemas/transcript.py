@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class Transcript(BaseModel):
@@ -11,6 +11,6 @@ class Transcript(BaseModel):
     text: str = Field(..., description="The transcribed text")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the transcription")
     language: str = Field(default="en", description="Language code of the transcript")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Timestamp of transcription")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp of transcription")
     audio_duration: Optional[float] = Field(None, description="Duration of the audio in seconds")
     speaker_id: Optional[str] = Field(None, description="Identifier for the speaker if available")

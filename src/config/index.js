@@ -10,6 +10,7 @@ module.exports = {
     authToken: process.env.TWILIO_AUTH_TOKEN,
     phoneNumber: process.env.TWILIO_PHONE_NUMBER,
   },
+  apiKey: process.env.API_KEY,
   google: {
     projectId: process.env.GOOGLE_PROJECT_ID,
     credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS,

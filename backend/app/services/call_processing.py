@@ -1,7 +1,7 @@
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-import logging
+import structlog
 
 from app.services import call_service
 from app.services.base import CRUDBase
@@ -9,11 +9,11 @@ from app.services.translation_service import TranslationService
 from app.services.ml_client import MLClient
 from app.services.severity_engine import SeverityEngine
 from app.services.geocoder import Geocoder
-from app.services.dispatch_service import DispatchService
+
 from app.core.events import publish_call_event
 from app.models.severity_report import SeverityReport
 
-logger = logging.getLogger("redline_ai.processing")
+logger = structlog.get_logger("redline_ai.processing")
 
 # CRUD instance for severity reports (was missing from call_service)
 severity_crud = CRUDBase(SeverityReport)
@@ -25,7 +25,6 @@ class CallProcessor:
         self.ml_client = MLClient()
         self.severity_engine = SeverityEngine()
         self.geocoder = Geocoder()
-        self.dispatcher = DispatchService()
 
     async def save_transcript(
         self,
@@ -138,7 +137,13 @@ class CallProcessor:
             await publish_call_event(call_id, "LOCATION_RESOLVED", geo)
 
         # dispatch recommendation
-        dispatch_info = await self.dispatcher.recommend(score, analysis_data["incident_type"], geo)
+        from app.services.dispatch_service import select_responder
+        responder = await select_responder(analysis_data["incident_type"], category)
+        dispatch_info = {
+            "unit_id": responder,
+            "eta_minutes": None,
+            "priority": category,
+        }
         dispatch_record = await call_service.dispatch.create(
             db,
             obj_in={

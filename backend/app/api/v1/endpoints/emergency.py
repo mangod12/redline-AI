@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.security import limiter, require_jwt_token
 from app.core.database import get_db
 from app.core.redis_client import get_redis_client
 from app.core.schemas import Transcript
@@ -76,13 +77,15 @@ class EmergencyResponse(BaseModel):
     summary="Process an emergency call through the full AI pipeline",
     tags=["emergency"],
 )
+@limiter.limit("30/minute")
 async def process_emergency(
     request: Request,
     db: AsyncSession = Depends(get_db),
+    token_payload: dict = Depends(require_jwt_token),
     # Multipart/form-data fields (all optional so JSON path works too)
     audio_file: Optional[UploadFile] = File(default=None),
     transcript: Optional[str] = Form(default=None),
-    caller_id: Optional[str] = Form(default=None),
+    caller_id: Optional[str] = Form(default=None, max_length=64),
 ) -> EmergencyResponse:
     """Process an emergency call end-to-end.
 
@@ -167,32 +170,37 @@ async def process_emergency(
     intent = "unknown"
     intent_confidence = 0.0
     intent_fallback = True
-    try:
-        from app.agents.intent.intent_agent import IntentAgent
-
-        intent_loader = getattr(request.app.state, "intent_loader", None)
-        intent_agent = IntentAgent(loader=intent_loader)
-        intent_result = await intent_agent.process(Transcript(text=transcript, confidence=1.0))
-        intent = intent_result.intent.value
-        intent_confidence = float(intent_result.confidence)
-        intent_fallback = bool(intent_result.fallback_used)
-    except Exception as exc:
-        log.warning("IntentAgent failed, using unknown fallback: %s", exc)
-
     emotion_label = "neutral"
     emotion_confidence = 0.0
     emotion_fallback = True
-    try:
-        from app.agents.emotion.emotion_agent import EmotionAgent
 
-        emotion_loader = getattr(request.app.state, "emotion_loader", None)
-        agent = EmotionAgent(loader=emotion_loader)
-        emotion_result = await agent.process(Transcript(text=transcript, confidence=1.0))
-        emotion_label = emotion_result.primary_emotion.value
-        emotion_confidence = float(emotion_result.confidence)
-        emotion_fallback = emotion_confidence <= 0.0
-    except Exception as exc:
-        log.warning("EmotionAgent failed, using neutral fallback: %s", exc)
+    async def _run_intent():
+        nonlocal intent, intent_confidence, intent_fallback
+        try:
+            from app.agents.intent.intent_agent import IntentAgent
+            intent_loader = getattr(request.app.state, "intent_loader", None)
+            intent_agent = IntentAgent(loader=intent_loader)
+            intent_result = await intent_agent.process(Transcript(text=transcript, confidence=1.0))
+            intent = intent_result.intent.value
+            intent_confidence = float(intent_result.confidence)
+            intent_fallback = bool(intent_result.fallback_used)
+        except Exception as exc:
+            log.warning("IntentAgent failed, using unknown fallback: %s", exc)
+
+    async def _run_emotion():
+        nonlocal emotion_label, emotion_confidence, emotion_fallback
+        try:
+            from app.agents.emotion.emotion_agent import EmotionAgent
+            emotion_loader = getattr(request.app.state, "emotion_loader", None)
+            agent = EmotionAgent(loader=emotion_loader)
+            emotion_result = await agent.process(Transcript(text=transcript, confidence=1.0))
+            emotion_label = emotion_result.primary_emotion.value
+            emotion_confidence = float(emotion_result.confidence)
+            emotion_fallback = emotion_confidence <= 0.0
+        except Exception as exc:
+            log.warning("EmotionAgent failed, using neutral fallback: %s", exc)
+
+    await asyncio.gather(_run_intent(), _run_emotion())
 
     severity = await compute_severity(transcript, emotion_label)
     responder = await select_responder(intent, severity)
@@ -207,6 +215,7 @@ async def process_emergency(
     call_row = EmergencyCall(
         call_id=call_id,
         caller_id=caller_id,
+        tenant_id=token_payload.get("tenant_id"),
         transcript=transcript,
         intent=intent,
         emotion=emotion_label,
@@ -263,6 +272,7 @@ async def process_emergency(
         intent_fallback=intent_fallback,
         emotion_fallback=emotion_fallback,
         latency_ms=float(latency_ms),
+        tenant_id=token_payload.get("tenant_id", ""),
     )
 
     # ------------------------------------------------------------------

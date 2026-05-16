@@ -101,8 +101,8 @@ class IntentModelLoader:
         return await loop.run_in_executor(self._executor, self._predict_sync, text)
 
     def _predict_sync(self, text: str) -> np.ndarray:
-        assert self._tokenizer is not None
-        assert self._session is not None
+        if self._tokenizer is None or self._session is None:
+            raise RuntimeError("IntentModelLoader is not properly initialized")
 
         inputs = self._tokenizer(
             text,

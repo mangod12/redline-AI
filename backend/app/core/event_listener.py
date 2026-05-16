@@ -1,12 +1,14 @@
 import asyncio
 import json
-import logging
+import structlog
 
 from app.core.redis_client import get_redis_client
 from app.core.database import AsyncSessionLocal
 from app.services.call_processing import CallProcessor
 
-logger = logging.getLogger("redline_ai.event")
+logger = structlog.get_logger("redline_ai.event")
+
+_listener_task = None
 
 # Events that should NEVER trigger re-processing (to prevent infinite loops)
 _IGNORE_EVENTS = {
@@ -73,6 +75,19 @@ def start_event_listener():
                 await asyncio.sleep(1)
 
     # schedule the listener in the running event loop (Python 3.10+ safe)
+    global _listener_task
     loop = asyncio.get_running_loop()
-    loop.create_task(_listener())
+    _listener_task = loop.create_task(_listener())
+
+
+async def stop_event_listener():
+    """Cancel the background listener task gracefully."""
+    global _listener_task
+    if _listener_task and not _listener_task.done():
+        _listener_task.cancel()
+        try:
+            await _listener_task
+        except asyncio.CancelledError:
+            pass
+        _listener_task = None
 

@@ -1,3 +1,4 @@
+# NOTE: These tasks are stubs. Implement real processing logic before production use.
 """Celery tasks for Redline AI background processing.
 
 These tasks are dispatched from the API layer so that heavy or

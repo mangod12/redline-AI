@@ -5,18 +5,14 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.models.base import Base
 
 
 class EmergencyCall(Base):
-    """Stores one processed emergency call with all pipeline outputs.
-
-    Deliberately NOT a TenantModel — emergency calls are global in the MVP
-    and do not require per-tenant scoping.
-    """
+    """Stores one processed emergency call with all pipeline outputs."""
 
     __tablename__ = "emergency_calls"
 
@@ -31,6 +27,9 @@ class EmergencyCall(Base):
 
     # Optional caller identifier supplied by the caller or the phone system
     caller_id: str | None = Column(String(255), nullable=True, index=True)
+
+    # Tenant scoping (nullable for backward compatibility with existing rows)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # STT / raw transcript
     transcript: str = Column(Text, nullable=False)

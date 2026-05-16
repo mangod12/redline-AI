@@ -16,8 +16,9 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import Response as StarletteResponse
 from starlette_prometheus import PrometheusMiddleware, metrics
 
 from app.core.config import settings
@@ -67,6 +68,9 @@ async def lifespan(app: FastAPI):
     if not settings.SECRET_KEY:
         raise RuntimeError("SECRET_KEY must be set via environment variable")
 
+    if settings.APP_ENV.lower() == "production" and not settings.POSTGRES_PASSWORD:
+        raise RuntimeError("POSTGRES_PASSWORD must be set in production")
+
     if settings.APP_ENV.lower() == "production" and settings.ENABLE_DOCS:
         log.warning("ENABLE_DOCS=true in production; docs endpoint is being force-disabled")
 
@@ -97,6 +101,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # ----------- Shutdown -----------
+    from app.core.event_listener import stop_event_listener
+    await stop_event_listener()
     await close_redis()
     if getattr(app.state, "emotion_loader", None) is not None:
         await app.state.emotion_loader.shutdown()
@@ -155,7 +161,10 @@ app.include_router(api_router, prefix=settings.API_V1_STR, dependencies=[Depends
 app.include_router(emergency_router, dependencies=[Depends(require_jwt_token)])
 app.include_router(websocket_router, prefix="/ws", tags=["websockets"])
 app.include_router(dashboard_router, tags=["dashboard"], dependencies=[Depends(require_jwt_token)])
-app.add_route("/metrics", metrics, include_in_schema=False)
+@app.get("/metrics", include_in_schema=False)
+async def protected_metrics(request: Request) -> StarletteResponse:
+    """Metrics endpoint - consider restricting in production via reverse proxy."""
+    return await metrics(request)
 
 
 # ---------------------------------------------------------------------------
@@ -165,20 +174,9 @@ app.add_route("/metrics", metrics, include_in_schema=False)
 
 @app.get("/health", tags=["health"])
 async def health_check() -> dict:
-    from app.core.redis_client import get_redis_client
     from app.core.database import check_db_health
-
-    redis = get_redis_client()
-    emo_loader = getattr(app.state, "emotion_loader", None)
-    int_loader = getattr(app.state, "intent_loader", None)
-    whisper_svc = getattr(app.state, "whisper_service", None)
     db_ok = await check_db_health()
     return {
         "status": "ok" if db_ok else "degraded",
-        "redis": "connected" if redis else "disconnected",
-        "database": "connected" if db_ok else "disconnected",
-        "emotion_model": "ready" if (emo_loader and emo_loader.is_ready()) else "unavailable",
-        "intent_model": "ready" if (int_loader and int_loader.is_ready()) else "unavailable",
-        "whisper_model": "ready" if (whisper_svc and whisper_svc.is_ready()) else "unavailable",
     }
 
