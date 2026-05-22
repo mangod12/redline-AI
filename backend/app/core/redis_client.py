@@ -23,13 +23,10 @@ async def init_redis():
         _redis_client = client
         logger.info("Connected to Redis at %s", settings.REDIS_URL)
     except Exception as exc:
-        if settings.APP_ENV.lower() == "production":
-            logger.error("Redis connection failed in production: %s", exc)
-            raise RuntimeError(
-                f"Redis is required in production but unavailable: {exc}"
-            ) from exc
+        logger.error("Redis connection failed: %s", exc)
 
-        logger.warning("Redis not available — trying fakeredis for local dev")
+        if settings.APP_ENV.lower() != "production":
+            logger.warning("Trying fakeredis for local dev")
         try:
             import fakeredis.aioredis as fakeredis_mod
 
