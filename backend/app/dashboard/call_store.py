@@ -74,9 +74,11 @@ def add_call(
             loop = asyncio.get_running_loop()
             task = loop.create_task(_async_add(redis, record))
             task.add_done_callback(
-                lambda t: logger.warning("call_store write failed: %s", t.exception())
-                if t.exception()
-                else None
+                lambda t: (
+                    logger.warning("call_store write failed: %s", t.exception())
+                    if t.exception()
+                    else None
+                )
             )
         except RuntimeError:
             # No running event loop — skip Redis write

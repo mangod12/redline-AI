@@ -89,11 +89,15 @@ async def lifespan(app: FastAPI):
                 lambda sync_conn: Base.metadata.create_all(sync_conn, checkfirst=True)
             )
     except Exception as exc:
-        log.warning("Database init failed — tables may already exist or DB not ready", error=str(exc))
+        log.warning(
+            "Database init failed — tables may already exist or DB not ready",
+            error=str(exc),
+        )
 
     # 3b. Download ML models from GCS if available (Cloud Run)
     if settings.GCS_MODEL_BUCKET:
         from app.core.model_downloader import download_models_from_gcs
+
         model_paths = await asyncio.get_running_loop().run_in_executor(
             None, download_models_from_gcs, settings.GCS_MODEL_BUCKET
         )

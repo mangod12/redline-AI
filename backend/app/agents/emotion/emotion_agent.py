@@ -326,7 +326,9 @@ class EmotionAgent(BaseAgent):
 
         try:
             # Stage 1: Wait for ML within the soft budget
-            ml_result = await asyncio.wait_for(asyncio.shield(ml_task), timeout=_settings.ML_SOFT_BUDGET_S)
+            ml_result = await asyncio.wait_for(
+                asyncio.shield(ml_task), timeout=_settings.ML_SOFT_BUDGET_S
+            )
             if ml_result and ml_result.confidence >= _CONFIDENCE_THRESHOLD:
                 bound_log.info(
                     "ML inference successful within budget",

@@ -141,8 +141,14 @@ async def ws_dashboard(websocket: WebSocket):
                         continue
                     try:
                         raw_data = raw_message["data"]
-                        if isinstance(raw_data, (str, bytes)) and len(raw_data) > _MAX_PUBSUB_MESSAGE_BYTES:
-                            logger.warning("Oversized pubsub message dropped (%d bytes)", len(raw_data))
+                        if (
+                            isinstance(raw_data, (str, bytes))
+                            and len(raw_data) > _MAX_PUBSUB_MESSAGE_BYTES
+                        ):
+                            logger.warning(
+                                "Oversized pubsub message dropped (%d bytes)",
+                                len(raw_data),
+                            )
                             continue
                         data = json.loads(raw_data)
                     except (json.JSONDecodeError, TypeError):

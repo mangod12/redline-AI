@@ -139,8 +139,13 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
             if raw_message["type"] == "message":
                 try:
                     raw_data = raw_message["data"]
-                    if isinstance(raw_data, (str, bytes)) and len(raw_data) > _MAX_PUBSUB_MESSAGE_BYTES:
-                        logger.warning("Oversized pubsub message dropped (%d bytes)", len(raw_data))
+                    if (
+                        isinstance(raw_data, (str, bytes))
+                        and len(raw_data) > _MAX_PUBSUB_MESSAGE_BYTES
+                    ):
+                        logger.warning(
+                            "Oversized pubsub message dropped (%d bytes)", len(raw_data)
+                        )
                         continue
                     data = json.loads(raw_data)
                     simplified = {

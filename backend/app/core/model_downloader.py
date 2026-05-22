@@ -11,7 +11,9 @@ from pathlib import Path
 log = logging.getLogger("redline_ai.model_downloader")
 
 
-def download_models_from_gcs(bucket_name: str, local_dir: str = "/tmp/models") -> dict[str, str]:
+def download_models_from_gcs(
+    bucket_name: str, local_dir: str = "/tmp/models"
+) -> dict[str, str]:
     """Download intent and emotion ONNX models from GCS.
 
     Returns dict of model_name -> local_path for successfully downloaded models.
