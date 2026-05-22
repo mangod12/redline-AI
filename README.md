@@ -20,6 +20,16 @@
 
 ---
 
+## Screenshots
+
+| Dispatcher Dashboard | Readiness Probe |
+|:---:|:---:|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Readiness](docs/screenshots/readiness.png) |
+
+> Dashboard shows 8 live emergency calls with intent classification, emotion analysis, severity scoring, dispatch routing, and latency — all processed in 1-43ms.
+
+---
+
 ## Architecture
 
 ```
