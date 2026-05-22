@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redline-celery-worker
+  labels:
+    app: redline-ai
+    component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redline-ai
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: redline-ai
+        component: worker
+    spec:
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: worker
+          image: redline-ai:latest
+          command:
+            - celery
+            - -A
+            - app.worker.celery_app
+            - worker
+            - --loglevel=info
+            - --concurrency=2
+            - --max-memory-per-child=256000
+          envFrom:
+            - secretRef:
+                name: redline-secrets
+            - configMapRef:
+                name: redline-config
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "from app.worker import celery_app; celery_app.control.ping(timeout=5)"
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 10

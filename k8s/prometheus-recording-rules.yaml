@@ -1,0 +1,41 @@
+groups:
+  - name: redline-ai-recording
+    interval: 15s
+    rules:
+      # Pipeline throughput (pre-aggregated for dashboard)
+      - record: redline:pipeline_rps
+        expr: rate(emergency_pipeline_total[5m])
+
+      - record: redline:pipeline_error_rate
+        expr: rate(emergency_pipeline_total{status="error"}[5m]) / rate(emergency_pipeline_total[5m])
+
+      # Latency percentiles (expensive to compute on-the-fly)
+      - record: redline:pipeline_latency_p50
+        expr: histogram_quantile(0.50, rate(emergency_pipeline_latency_seconds_bucket[5m]))
+
+      - record: redline:pipeline_latency_p95
+        expr: histogram_quantile(0.95, rate(emergency_pipeline_latency_seconds_bucket[5m]))
+
+      - record: redline:pipeline_latency_p99
+        expr: histogram_quantile(0.99, rate(emergency_pipeline_latency_seconds_bucket[5m]))
+
+      # Fallback rates
+      - record: redline:intent_fallback_rate
+        expr: rate(intent_fallback_count[5m]) / rate(emergency_pipeline_total{status="success"}[5m])
+
+      - record: redline:emotion_fallback_rate
+        expr: rate(emergency_pipeline_fallback_total{agent="emotion"}[5m]) / rate(emergency_pipeline_total{status="success"}[5m])
+
+      # Whisper utilization
+      - record: redline:whisper_utilization
+        expr: whisper_active_transcriptions / 4
+
+      - record: redline:whisper_latency_p95
+        expr: histogram_quantile(0.95, rate(whisper_transcription_seconds_bucket[5m]))
+
+      # ML agent latency
+      - record: redline:intent_latency_p95
+        expr: histogram_quantile(0.95, rate(intent_latency_bucket[5m]))
+
+      - record: redline:emotion_latency_p95
+        expr: histogram_quantile(0.95, rate(ml_inference_latency_seconds_bucket[5m]))
