@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: str = "5432"
     POSTGRES_DB: str = "redline_db"
+    # Cloud SQL unix socket (set CLOUD_SQL_CONNECTION_NAME for Cloud Run)
+    CLOUD_SQL_CONNECTION_NAME: str = ""
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
@@ -36,6 +38,13 @@ class Settings(BaseSettings):
                     "Set USE_SQLITE=false and configure PostgreSQL."
                 )
             return "sqlite+aiosqlite:///./redline.db"
+        # Cloud SQL socket path (Cloud Run mounts proxy at /cloudsql/)
+        if self.CLOUD_SQL_CONNECTION_NAME:
+            socket_path = f"/cloudsql/{self.CLOUD_SQL_CONNECTION_NAME}"
+            return (
+                f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+                f"@/{self.POSTGRES_DB}?host={socket_path}"
+            )
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     # Redis

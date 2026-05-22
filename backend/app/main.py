@@ -176,7 +176,8 @@ async def lifespan(app: FastAPI):
 # Application
 # ---------------------------------------------------------------------------
 
-docs_enabled = settings.ENABLE_DOCS and settings.APP_ENV.lower() != "production"
+# ENABLE_DOCS=true explicitly overrides the production default of hiding docs
+docs_enabled = settings.ENABLE_DOCS
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
