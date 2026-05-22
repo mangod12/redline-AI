@@ -24,8 +24,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Make entrypoint executable
-RUN chmod +x docker-entrypoint.sh
+# Fix line endings (Windows CRLF -> Unix LF) and make executable
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app \
