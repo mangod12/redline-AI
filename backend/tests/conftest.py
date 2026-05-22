@@ -2,8 +2,13 @@
 
 Adds the app directory to sys.path and provides shared fixtures.
 """
+import os
 import sys
 from pathlib import Path
+
+# Prevent torch._dynamo from scanning onnxruntime at import time
+# (torch 2.10 + onnxruntime 1.24 spec conflict)
+os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
 
 import pytest
 
