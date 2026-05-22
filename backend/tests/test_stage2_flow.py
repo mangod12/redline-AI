@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import pytest
 from uuid import UUID
 
@@ -31,8 +32,8 @@ async def db_session():
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(
-    not settings.SECRET_KEY,
-    reason="SECRET_KEY not set — integration test skipped",
+    not settings.SECRET_KEY or os.getenv("USE_SQLITE") == "true",
+    reason="SECRET_KEY not set or running in CI without Redis",
 )
 async def test_end_to_end_pipeline(db_session):
     # make sure Redis is available
