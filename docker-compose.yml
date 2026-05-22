@@ -25,6 +25,12 @@ services:
       - ./backend:/app
       - ./ml:/app/ml
     command: gunicorn app.main:app -c gunicorn.conf.py
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
 
   celery_worker:
     build: ./backend
@@ -41,6 +47,8 @@ services:
     env_file:
       - ./backend/.env
     depends_on:
+      app:
+        condition: service_healthy
       redis:
         condition: service_healthy
       postgres:
@@ -49,9 +57,9 @@ services:
       - ./backend:/app
       - ./ml:/app/ml
     healthcheck:
-      test: ["CMD", "ps", "aux"]
+      test: ["CMD", "python", "-c", "from app.worker import celery_app; celery_app.control.ping(timeout=5)"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
       start_period: 30s
 
@@ -125,6 +133,8 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./backend/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./backend/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
 

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redline-config
+  labels:
+    app: redline-ai
+data:
+  APP_ENV: "production"
+  USE_SQLITE: "false"
+  POSTGRES_SERVER: "postgres-service"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "redline"
+  REDIS_URL: "redis://redis-service:6379"
+  ML_SERVICE_URL: "http://ml-service:8001"
+  WHISPER_MODEL_SIZE: "small"
+  GUNICORN_WORKERS: "2"
+  ALLOWED_ORIGINS: "https://dispatch.redline.ai"
+  ENABLE_DOCS: "false"

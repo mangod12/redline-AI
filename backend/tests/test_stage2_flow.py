@@ -3,11 +3,12 @@ import json
 import pytest
 from uuid import UUID
 
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 import respx
 import redis.asyncio as redis
 
 from app.core.config import settings
+from app.core.security import create_access_token
 from app.core.database import AsyncSessionLocal
 from app.models.call import Call
 from app.models.analysis_result import AnalysisResult
@@ -29,12 +30,25 @@ async def db_session():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not settings.SECRET_KEY,
+    reason="SECRET_KEY not set — integration test skipped",
+)
 async def test_end_to_end_pipeline(db_session):
     # make sure Redis is available
     redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
     await redis_client.flushall()
 
-    async with AsyncClient(app=fastapi_app, base_url="http://testserver") as client:
+    # Generate test JWT
+    test_token = create_access_token(
+        subject="test-user-id",
+        tenant_id="00000000-0000-0000-0000-000000000001",
+        role="super_admin",
+    )
+    auth_headers = {"Authorization": f"Bearer {test_token}"}
+
+    transport = ASGITransport(app=fastapi_app)
+    async with AsyncClient(transport=transport, base_url="http://testserver", headers=auth_headers) as client:
         # start a call
         resp = await client.post("/api/v1/calls/start", json={"caller_number": "555-1234"})
         assert resp.status_code == 200

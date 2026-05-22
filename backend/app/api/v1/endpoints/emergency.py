@@ -32,8 +32,31 @@ from app.services.cache_service import cache_call
 from app.services.dispatch_service import select_responder
 from app.services.severity_service import compute_severity
 from app.dashboard import call_store
+from prometheus_client import Counter, Histogram
 
 log = logging.getLogger("redline_ai.api.emergency")
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics
+# ---------------------------------------------------------------------------
+
+emergency_pipeline_latency_seconds = Histogram(
+    "emergency_pipeline_latency_seconds",
+    "End-to-end latency of the emergency pipeline",
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0],
+)
+
+emergency_pipeline_total = Counter(
+    "emergency_pipeline_total",
+    "Total emergency pipeline invocations",
+    ["status"],
+)
+
+emergency_pipeline_fallback_total = Counter(
+    "emergency_pipeline_fallback_total",
+    "Emergency pipeline fallback activations",
+    ["agent"],
+)
 
 router = APIRouter()
 
@@ -142,6 +165,7 @@ async def process_emergency(
             transcript = await whisper_svc.transcribe(audio_bytes)
         except Exception as exc:
             log.error("Whisper transcription failed: %s", exc)
+            emergency_pipeline_total.labels(status="error").inc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Audio transcription failed",
@@ -156,6 +180,10 @@ async def process_emergency(
         )
 
     transcript = resolved_transcript.strip()
+
+    # Sanitize: strip control characters (but preserve unicode text for multi-language)
+    import re as _re
+    transcript = _re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', transcript)
 
     if len(transcript) > settings.MAX_TRANSCRIPT_LENGTH:
         raise HTTPException(
@@ -212,10 +240,18 @@ async def process_emergency(
     latency_ms = int((time.perf_counter() - t_start) * 1000)
     call_id = uuid.uuid4()
 
+    # Validate tenant_id as UUID — pass None if invalid (tenant column is nullable)
+    raw_tenant = token_payload.get("tenant_id")
+    try:
+        from uuid import UUID as _UUID
+        tenant_uuid = _UUID(str(raw_tenant)) if raw_tenant else None
+    except (ValueError, AttributeError):
+        tenant_uuid = None
+
     call_row = EmergencyCall(
         call_id=call_id,
         caller_id=caller_id,
-        tenant_id=token_payload.get("tenant_id"),
+        tenant_id=tenant_uuid,
         transcript=transcript,
         intent=intent,
         emotion=emotion_label,
@@ -229,10 +265,22 @@ async def process_emergency(
     except Exception as exc:
         await db.rollback()
         log.error("DB commit failed for call %s: %s", call_id, exc)
+        emergency_pipeline_total.labels(status="error").inc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to persist call record",
         ) from exc
+
+    # Audit: emergency call processed
+    from app.services.audit_service import audit_event
+    audit_event(
+        action="emergency_call_processed",
+        tenant_id=token_payload.get("tenant_id", ""),
+        user_id=token_payload.get("sub"),
+        entity_type="emergency_call",
+        entity_id=str(call_id),
+        details={"severity": severity, "intent": intent, "responder": responder},
+    )
 
     # ------------------------------------------------------------------
     # 4. Cache in Redis (fire-and-forget — never blocks response)
@@ -276,8 +324,41 @@ async def process_emergency(
     )
 
     # ------------------------------------------------------------------
-    # 5. Return
+    # 5. Dispatch Celery background tasks (fire-and-forget)
     # ------------------------------------------------------------------
+
+    try:
+        from app.tasks import process_emergency_call, send_dispatch_notification
+
+        process_emergency_call.delay(
+            call_id=str(call_id),
+            transcript=transcript,
+            intent=intent,
+            emotion=emotion_label,
+            severity=severity,
+            responder=responder,
+        )
+        send_dispatch_notification.delay(
+            call_id=str(call_id),
+            responder=responder,
+            severity=severity,
+            tenant_id=token_payload.get("tenant_id"),
+        )
+    except Exception as exc:
+        log.warning("Failed to dispatch Celery tasks for call %s: %s", call_id, exc)
+
+    # ------------------------------------------------------------------
+    # 6. Prometheus metrics & Return
+    # ------------------------------------------------------------------
+
+    elapsed = time.perf_counter() - t_start
+    emergency_pipeline_latency_seconds.observe(elapsed)
+    emergency_pipeline_total.labels(status="success").inc()
+
+    if intent_fallback:
+        emergency_pipeline_fallback_total.labels(agent="intent").inc()
+    if emotion_fallback:
+        emergency_pipeline_fallback_total.labels(agent="emotion").inc()
 
     return EmergencyResponse(
         call_id=str(call_id),

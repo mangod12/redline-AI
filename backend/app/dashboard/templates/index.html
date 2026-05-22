@@ -8,9 +8,15 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="max-w-7xl mx-auto px-4 py-6">
+    <!-- Header with connection status indicator -->
     <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold tracking-tight">Dispatcher Dashboard</h1>
-      <p id="last-updated" class="text-sm text-slate-400">Refreshing...</p>
+      <div class="flex items-center gap-3">
+        <h1 class="text-2xl font-bold tracking-tight">Dispatcher Dashboard</h1>
+        <span id="conn-indicator" title="Disconnected"
+              class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-red-500/30 transition-colors duration-300"></span>
+        <span id="conn-label" class="text-xs text-slate-500">disconnected</span>
+      </div>
+      <p id="last-updated" class="text-sm text-slate-400">Loading...</p>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
@@ -56,16 +62,37 @@
   </div>
 
   <script>
+    // -----------------------------------------------------------------------
+    // Auth token
+    // -----------------------------------------------------------------------
+    const urlToken = new URLSearchParams(window.location.search).get("token");
+    if (urlToken) sessionStorage.setItem("redline_token", urlToken);
+    const AUTH_TOKEN = sessionStorage.getItem("redline_token") || "";
+
+    function authHeaders() {
+      return AUTH_TOKEN ? { "Authorization": "Bearer " + AUTH_TOKEN } : {};
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
     function sevClass(level) {
       if (level === "critical") return "text-rose-400";
-      if (level === "high") return "text-amber-300";
-      if (level === "medium") return "text-yellow-300";
+      if (level === "high")     return "text-amber-300";
+      if (level === "medium")   return "text-yellow-300";
       return "text-emerald-300";
     }
 
     function trimText(text, maxLen) {
       if (!text) return "";
       return text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      const div = document.createElement("div");
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
     }
 
     function renderRow(c) {
@@ -75,47 +102,211 @@
 
       return `
         <tr class="hover:bg-slate-800/40">
-          <td class="px-3 py-2 font-mono text-xs text-slate-300">${c.call_id}</td>
-          <td class="px-3 py-2 text-slate-200 max-w-xl">${trimText(c.transcript || "", 120)}</td>
-          <td class="px-3 py-2 text-slate-200">${c.intent} (${((c.intent_confidence || 0) * 100).toFixed(1)}%)</td>
-          <td class="px-3 py-2 text-slate-200">${c.emotion}</td>
-          <td class="px-3 py-2 font-semibold ${sevClass(c.severity)}">${c.severity}</td>
-          <td class="px-3 py-2 text-slate-200">${c.responder}</td>
-          <td class="px-3 py-2 text-slate-300 text-xs">${fallbackText}</td>
+          <td class="px-3 py-2 font-mono text-xs text-slate-300">${escapeHtml(c.call_id)}</td>
+          <td class="px-3 py-2 text-slate-200 max-w-xl">${escapeHtml(trimText(c.transcript || "", 120))}</td>
+          <td class="px-3 py-2 text-slate-200">${escapeHtml(c.intent)} (${((c.intent_confidence || 0) * 100).toFixed(1)}%)</td>
+          <td class="px-3 py-2 text-slate-200">${escapeHtml(c.emotion)}</td>
+          <td class="px-3 py-2 font-semibold ${sevClass(c.severity)}">${escapeHtml(c.severity)}</td>
+          <td class="px-3 py-2 text-slate-200">${escapeHtml(c.responder)}</td>
+          <td class="px-3 py-2 text-slate-300 text-xs">${escapeHtml(fallbackText)}</td>
           <td class="px-3 py-2 text-cyan-300">${Number(c.latency_ms || 0).toFixed(0)} ms</td>
         </tr>
       `;
     }
 
-    async function refresh() {
+    // -----------------------------------------------------------------------
+    // In-memory call list (kept in sync with table)
+    // -----------------------------------------------------------------------
+    let callsList = [];
+
+    function recalcStats() {
+      document.getElementById("stat-total").textContent    = String(callsList.length);
+      document.getElementById("stat-critical").textContent  = String(callsList.filter(c => c.severity === "critical").length);
+      document.getElementById("stat-high").textContent      = String(callsList.filter(c => c.severity === "high").length);
+
+      const fallbackRate = callsList.length
+        ? Math.round((callsList.filter(c => c.fallback_used).length / callsList.length) * 100)
+        : 0;
+      document.getElementById("stat-fallback").textContent = fallbackRate + "%";
+    }
+
+    function renderAllRows() {
+      const body = document.getElementById("calls-body");
+      if (!callsList.length) {
+        body.innerHTML = '<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">Waiting for calls...</td></tr>';
+        return;
+      }
+      body.innerHTML = callsList.map(renderRow).join("");
+    }
+
+    function prependCall(c) {
+      // Avoid duplicates
+      if (callsList.some(existing => existing.call_id === c.call_id)) return;
+      callsList.unshift(c);
+      // Cap at 100 rows
+      if (callsList.length > 100) callsList.pop();
+
+      const body = document.getElementById("calls-body");
+      // Clear the "Waiting for calls..." placeholder
+      if (callsList.length === 1) body.innerHTML = "";
+      body.insertAdjacentHTML("afterbegin", renderRow(c));
+      // Trim excess DOM rows
+      while (body.children.length > 100) body.removeChild(body.lastChild);
+
+      recalcStats();
+      document.getElementById("last-updated").textContent = "Updated " + new Date().toLocaleTimeString();
+    }
+
+    // -----------------------------------------------------------------------
+    // Initial HTTP fetch (loads existing data)
+    // -----------------------------------------------------------------------
+    async function initialFetch() {
       try {
-        const response = await fetch("/api/v1/calls/live?limit=50");
+        const response = await fetch("/api/v1/calls/live?limit=50", { headers: authHeaders() });
         const data = await response.json();
-        const calls = data.calls || [];
-
+        callsList = data.calls || [];
+        renderAllRows();
+        recalcStats();
         document.getElementById("last-updated").textContent = "Updated " + new Date().toLocaleTimeString();
-        document.getElementById("stat-total").textContent = String(calls.length);
-        document.getElementById("stat-critical").textContent = String(calls.filter(c => c.severity === "critical").length);
-        document.getElementById("stat-high").textContent = String(calls.filter(c => c.severity === "high").length);
-
-        const fallbackRate = calls.length
-          ? Math.round((calls.filter(c => c.fallback_used).length / calls.length) * 100)
-          : 0;
-        document.getElementById("stat-fallback").textContent = fallbackRate + "%";
-
-        const body = document.getElementById("calls-body");
-        if (!calls.length) {
-          body.innerHTML = '<tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">Waiting for calls...</td></tr>';
-          return;
-        }
-        body.innerHTML = calls.map(renderRow).join("");
-      } catch (error) {
-        document.getElementById("last-updated").textContent = "Refresh failed";
+      } catch (err) {
+        document.getElementById("last-updated").textContent = "Initial load failed";
       }
     }
 
-    refresh();
-    setInterval(refresh, 2000);
+    // -----------------------------------------------------------------------
+    // Polling fallback (only active when WebSocket is disconnected)
+    // -----------------------------------------------------------------------
+    let pollTimer = null;
+
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(async () => {
+        try {
+          const response = await fetch("/api/v1/calls/live?limit=50", { headers: authHeaders() });
+          const data = await response.json();
+          callsList = data.calls || [];
+          renderAllRows();
+          recalcStats();
+          document.getElementById("last-updated").textContent = "Updated " + new Date().toLocaleTimeString() + " (poll)";
+        } catch (_) {
+          document.getElementById("last-updated").textContent = "Refresh failed";
+        }
+      }, 3000);
+    }
+
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Connection status indicator
+    // -----------------------------------------------------------------------
+    function setConnStatus(connected) {
+      const dot   = document.getElementById("conn-indicator");
+      const label = document.getElementById("conn-label");
+      if (connected) {
+        dot.className   = "inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30 transition-colors duration-300";
+        dot.title       = "Connected";
+        label.textContent = "live";
+        label.className   = "text-xs text-emerald-400";
+      } else {
+        dot.className   = "inline-block w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-red-500/30 transition-colors duration-300";
+        dot.title       = "Disconnected";
+        label.textContent = "disconnected";
+        label.className   = "text-xs text-slate-500";
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // WebSocket with exponential backoff reconnection
+    // -----------------------------------------------------------------------
+    const WS_INITIAL_BACKOFF_MS = 1000;
+    const WS_MAX_BACKOFF_MS     = 30000;
+    let wsBackoff = WS_INITIAL_BACKOFF_MS;
+    let ws        = null;
+    let wsReconnectTimer = null;
+
+    function buildWsUrl() {
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return proto + "//" + window.location.host + "/ws/dashboard?token=" + encodeURIComponent(AUTH_TOKEN);
+    }
+
+    function connectWebSocket() {
+      if (!AUTH_TOKEN) {
+        // No token -- fall back to polling only
+        startPolling();
+        return;
+      }
+
+      ws = new WebSocket(buildWsUrl());
+
+      ws.onopen = function () {
+        wsBackoff = WS_INITIAL_BACKOFF_MS;
+        setConnStatus(true);
+        stopPolling();
+        document.getElementById("last-updated").textContent = "Connected " + new Date().toLocaleTimeString();
+      };
+
+      ws.onmessage = function (evt) {
+        let msg;
+        try {
+          msg = JSON.parse(evt.data);
+        } catch (_) {
+          return;
+        }
+
+        // Server keepalive ping -- just ignore
+        if (msg.type === "ping") return;
+
+        // Real call event -- build a call-shaped object and prepend
+        if (msg.type === "call_event") {
+          const c = {
+            call_id:            msg.call_id            || "",
+            transcript:         msg.text               || msg.transcript || "",
+            intent:             msg.intent             || "",
+            intent_confidence:  msg.intent_confidence  || 0,
+            emotion:            msg.emotion            || "",
+            severity:           msg.severity           || "",
+            responder:          msg.responder          || "",
+            fallback_used:      !!msg.fallback_used,
+            intent_fallback:    !!msg.intent_fallback,
+            emotion_fallback:   !!msg.emotion_fallback,
+            latency_ms:         msg.latency_ms         || 0,
+          };
+          prependCall(c);
+        }
+      };
+
+      ws.onerror = function () {
+        // onerror is always followed by onclose, so reconnect logic lives there
+      };
+
+      ws.onclose = function (evt) {
+        setConnStatus(false);
+        ws = null;
+
+        // Start polling as fallback while disconnected
+        startPolling();
+
+        // Schedule reconnect with exponential backoff
+        if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = setTimeout(function () {
+          wsReconnectTimer = null;
+          connectWebSocket();
+        }, wsBackoff);
+        wsBackoff = Math.min(wsBackoff * 2, WS_MAX_BACKOFF_MS);
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // Boot
+    // -----------------------------------------------------------------------
+    initialFetch().then(function () {
+      connectWebSocket();
+    });
   </script>
 </body>
 </html>

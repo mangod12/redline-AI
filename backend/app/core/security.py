@@ -19,7 +19,22 @@ log = structlog.get_logger("redline_ai.security")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+def _tenant_or_ip_key(request: Request) -> str:
+    """Rate limit key: tenant_id from JWT if available, else remote IP."""
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        try:
+            token = auth[7:]
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            tenant_id = payload.get("tenant_id")
+            if tenant_id:
+                return f"tenant:{tenant_id}"
+        except Exception:
+            pass
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_tenant_or_ip_key, default_limits=["60/minute"])
 
 ALGORITHM = "HS256"
 _bearer_scheme = HTTPBearer(auto_error=False)

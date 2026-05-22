@@ -8,6 +8,7 @@ __pycache__
 *.md
 .pytest_cache
 .mypy_cache
+.ruff_cache
 datasets/
 node_modules/
 *.egg-info
@@ -15,3 +16,8 @@ dist/
 build/
 .vscode/
 .idea/
+tests/
+locustfile.py
+simulate_chaos.py
+Dockerfile.edge
+grafana/

@@ -378,19 +378,25 @@ class EmotionAgent(BaseAgent):
         except asyncio.TimeoutError:
             ML_FAILURE_COUNT.labels(reason="timeout").inc()
             log.warning("ML inference timed out")
-            _ml_breaker.call(lambda: (_ for _ in ()).throw(TimeoutError()))  # trip
+            try:
+                def _trip_timeout():
+                    raise TimeoutError("ML inference timeout")
+                _ml_breaker.call(_trip_timeout)
+            except Exception:  # noqa: BLE001
+                pass
             return None
         except pybreaker.CircuitBreakerError:
             ML_FAILURE_COUNT.labels(reason="circuit_open").inc()
             log.warning("Circuit breaker blocked ML call")
             return None
-        except Exception as exc:
+        except Exception as ml_exc:
             ML_FAILURE_COUNT.labels(reason="exception").inc()
-            log.error("ML inference exception", exc=str(exc))
+            err_msg = str(ml_exc)
+            log.error("ML inference exception", exc=err_msg)
             try:
-                _ml_breaker.call(
-                    lambda: (_ for _ in ()).throw(RuntimeError(str(exc)))
-                )
+                def _trip_exc():
+                    raise RuntimeError(err_msg)
+                _ml_breaker.call(_trip_exc)
             except Exception:  # noqa: BLE001
                 pass
             return None

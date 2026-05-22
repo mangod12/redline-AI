@@ -29,9 +29,24 @@ async def login_access_token(
     user = result.scalar_one_or_none()
 
     if not user or not security.verify_password(form_data.password, user.hashed_password):
+        from app.services.audit_service import audit_event
+        audit_event(
+            action="login_failed",
+            tenant_id="",
+            details={"email": form_data.username, "ip": request.client.host if request.client else ""},
+        )
         raise HTTPException(status_code=401, detail="Incorrect email or password")
-    
+
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    from app.services.audit_service import audit_event
+    audit_event(
+        action="login_success",
+        tenant_id=str(user.tenant_id),
+        user_id=str(user.id),
+        details={"email": user.email, "ip": request.client.host if request.client else ""},
+    )
+
     return {
         "access_token": security.create_access_token(
             user.id, tenant_id=user.tenant_id, role=user.role, expires_delta=access_token_expires
@@ -72,4 +87,15 @@ async def register_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    from app.services.audit_service import audit_event
+    audit_event(
+        action="user_registered",
+        tenant_id=str(user_in.tenant_id),
+        user_id=str(current_user.id),
+        entity_type="user",
+        entity_id=str(user.id),
+        details={"email": user_in.email, "role": user_in.role.value},
+    )
+
     return user

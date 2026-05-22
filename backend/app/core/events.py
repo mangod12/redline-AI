@@ -36,4 +36,4 @@ async def publish_call_event(call_id: UUID, event_type: str, payload: dict):
         await redis.publish(per_channel, json.dumps(message))
         await redis.publish(global_channel, json.dumps(message))
     except Exception as e:
-        logger.error(f"Failed to publish event: {e}")
+        logger.error("Failed to publish event: %s", e)

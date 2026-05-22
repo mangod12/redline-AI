@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -57,6 +58,27 @@ class Settings(BaseSettings):
         Path(__file__).resolve().parents[2] / "ml" / "emotion_model.pt"
     )
 
+    # ---- INT8-quantized model paths (edge deployment) --------------------
+    # Fall back to the regular (FP32) paths when the INT8 variants are absent.
+    INTENT_ONNX_INT8_PATH: str = str(
+        Path(__file__).resolve().parents[2] / "ml" / "intent_model_int8.onnx"
+    )
+    EMOTION_ONNX_INT8_PATH: str = str(
+        Path(__file__).resolve().parents[2] / "ml" / "emotion_model_int8.onnx"
+    )
+
+    @property
+    def intent_onnx_effective_path(self) -> str:
+        """Return INT8 path if the file exists, otherwise fall back to FP32."""
+        int8 = Path(self.INTENT_ONNX_INT8_PATH)
+        return str(int8) if int8.exists() else self.INTENT_ONNX_PATH
+
+    @property
+    def emotion_onnx_effective_path(self) -> str:
+        """Return INT8 path if the file exists, otherwise fall back to FP32."""
+        int8 = Path(self.EMOTION_ONNX_INT8_PATH)
+        return str(int8) if int8.exists() else self.EMOTION_ONNX_PATH
+
     # ---- Whisper STT (local, no paid API) ---------------------------------
     # Model size: tiny | base | small | medium | large
     # "small" balances accuracy + speed on CPU.  Override via WHISPER_MODEL_SIZE env.
@@ -74,7 +96,11 @@ class Settings(BaseSettings):
     # Comma-separated list of allowed origins, e.g.:
     #   ALLOWED_ORIGINS=https://app.redline.ai,https://admin.redline.ai
     # Set to "*" only in local development (handled by the lifespan check).
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        return [s.strip() for s in self.ALLOWED_ORIGINS.split(",") if s.strip()]
 
     # ---- Docs -----------------------------------------------------------
     # Disable Swagger / ReDoc in production
@@ -84,6 +110,7 @@ class Settings(BaseSettings):
         case_sensitive=True,
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
 

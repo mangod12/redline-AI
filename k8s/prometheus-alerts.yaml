@@ -1,0 +1,64 @@
+groups:
+  - name: redline-ai-critical
+    rules:
+      - alert: HighPipelineLatency
+        expr: histogram_quantile(0.95, rate(emergency_pipeline_latency_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 pipeline latency > 5s"
+          description: "Emergency pipeline p95 latency is {{ $value }}s over the last 5 minutes."
+
+      - alert: HighErrorRate
+        expr: rate(emergency_pipeline_total{status="error"}[5m]) / rate(emergency_pipeline_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pipeline error rate > 5%"
+          description: "Emergency pipeline error rate is {{ $value | humanizePercentage }}."
+
+      - alert: CircuitBreakerOpen
+        expr: intent_fallback_count{reason="circuit_open"} > 0 or ml_failure_count_total{reason="circuit_open"} > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ML circuit breaker is OPEN"
+          description: "Intent or emotion ML circuit breaker has tripped."
+
+      - alert: HighFallbackRate
+        expr: rate(emergency_pipeline_fallback_total[5m]) / rate(emergency_pipeline_total{status="success"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fallback rate > 50%"
+          description: "More than half of calls are using heuristic fallback."
+
+      - alert: WhisperConcurrencyMaxed
+        expr: whisper_active_transcriptions >= 4
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Whisper at max concurrency"
+          description: "All {{ $value }} Whisper slots are occupied. Requests may queue."
+
+      - alert: DatabasePoolExhausted
+        expr: pg_pool_checkedout / pg_pool_size > 0.9
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DB connection pool near exhaustion"
+
+      - alert: RedlineDown
+        expr: up{job="redline_ai"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redline AI is down"
+          description: "No successful scrapes from Redline AI for 1 minute."

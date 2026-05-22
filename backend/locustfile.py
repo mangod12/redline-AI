@@ -99,6 +99,23 @@ class EmergencyUser(HttpUser):
     # 1 request per second per user -> user count ~= RPS
     wait_time = constant_throughput(1)
 
+    def on_start(self) -> None:
+        """Authenticate and store JWT for subsequent requests."""
+        token = os.getenv("LOCUST_AUTH_TOKEN", "")
+        if not token:
+            # Try to login with test credentials
+            username = os.getenv("LOCUST_USERNAME", "admin@redline.ai")
+            password = os.getenv("LOCUST_PASSWORD", "")
+            if password:
+                resp = self.client.post(
+                    "/api/v1/auth/login",
+                    data={"username": username, "password": password},
+                )
+                if resp.status_code == 200:
+                    token = resp.json().get("access_token", "")
+        if token:
+            self.client.headers["Authorization"] = f"Bearer {token}"
+
     @task
     def process_emergency(self) -> None:
         transcript = random.choice(TRANSCRIPTS)

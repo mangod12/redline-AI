@@ -18,12 +18,13 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.responses import Response as StarletteResponse
 from starlette_prometheus import PrometheusMiddleware, metrics
 
 from app.core.config import settings
 from app.core.redis_client import close_redis, init_redis
-from app.core.database import engine
+from app.core.database import engine, collect_pool_metrics
 from app.api.v1.api import api_router
 from app.core.security import limiter, require_jwt_token
 from app.models.base import Base
@@ -74,7 +75,7 @@ async def lifespan(app: FastAPI):
     if settings.APP_ENV.lower() == "production" and settings.ENABLE_DOCS:
         log.warning("ENABLE_DOCS=true in production; docs endpoint is being force-disabled")
 
-    if any(origin == "*" for origin in settings.ALLOWED_ORIGINS):
+    if any(origin == "*" for origin in settings.allowed_origins_list):
         raise RuntimeError("Wildcard CORS origin is not allowed")
 
     # 2. Redis
@@ -90,26 +91,75 @@ async def lifespan(app: FastAPI):
     await loop.run_in_executor(None, whisper_service.initialize)
     app.state.whisper_service = whisper_service
 
-    # 5. Intent ONNX model
+    # 5. Intent ONNX model (graceful — keyword fallback if model unavailable)
     intent_loader = IntentModelLoader()
-    await intent_loader.initialize()
-    app.state.intent_loader = intent_loader
+    try:
+        await intent_loader.initialize()
+        app.state.intent_loader = intent_loader
+        log.info("Intent ONNX model loaded")
+    except Exception as exc:
+        app.state.intent_loader = None
+        log.warning("Intent model not available — keyword fallback active", error=str(exc))
+
+    # 6. Emotion ONNX model (graceful — skip if model files missing)
+    try:
+        from app.ml.emotion_model_loader import EmotionModelLoader
+        emotion_loader = EmotionModelLoader()
+        await emotion_loader.initialize()
+        app.state.emotion_loader = emotion_loader
+        log.info("Emotion ONNX model loaded")
+    except Exception as exc:
+        app.state.emotion_loader = None
+        log.warning("Emotion model not available — heuristic fallback active", error=str(exc))
 
     # begin background event subscriber
     from app.core.event_listener import start_event_listener
     start_event_listener()
+
+    # 7. Background pool-metrics collector (PostgreSQL only)
+    async def _pool_metrics_loop() -> None:
+        while True:
+            try:
+                collect_pool_metrics()
+            except Exception:
+                pass  # never crash the background task
+            await asyncio.sleep(15)
+
+    pool_metrics_task: asyncio.Task | None = None
+    if "postgresql" in settings.SQLALCHEMY_DATABASE_URI:
+        pool_metrics_task = asyncio.create_task(_pool_metrics_loop())
+
+    log.info(
+        "Redline AI started",
+        whisper=whisper_service.is_ready(),
+        intent=intent_loader.is_ready(),
+        emotion=getattr(app.state, "emotion_loader", None) is not None,
+    )
     yield
 
-    # ----------- Shutdown -----------
+    # ----------- Shutdown (drain then release) -----------
+    log.info("Redline AI shutting down...")
+
+    # Cancel pool-metrics background task
+    if pool_metrics_task is not None:
+        pool_metrics_task.cancel()
+        try:
+            await pool_metrics_task
+        except asyncio.CancelledError:
+            pass
     from app.core.event_listener import stop_event_listener
     await stop_event_listener()
-    await close_redis()
+
+    # Shutdown ML models first (they hold thread pools)
     if getattr(app.state, "emotion_loader", None) is not None:
         await app.state.emotion_loader.shutdown()
     if getattr(app.state, "intent_loader", None) is not None:
         await app.state.intent_loader.shutdown()
     if getattr(app.state, "whisper_service", None) is not None:
         app.state.whisper_service.shutdown()
+
+    # Close Redis last (other components may flush during shutdown)
+    await close_redis()
     log.info("Redline AI shut down cleanly")
 
 
@@ -121,6 +171,10 @@ docs_enabled = settings.ENABLE_DOCS and settings.APP_ENV.lower() != "production"
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
+    description="AI-powered emergency intelligence and dispatch platform. "
+    "Processes 911 calls through Whisper STT, intent/emotion classification, "
+    "severity scoring, and automated dispatch routing.",
+    version="1.0.0",
     openapi_url=f"{settings.API_V1_STR}/openapi.json" if docs_enabled else None,
     docs_url="/docs" if docs_enabled else None,
     redoc_url="/redoc" if docs_enabled else None,
@@ -134,20 +188,36 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all for unhandled exceptions — returns structured JSON."""
+    log.error("Unhandled exception", path=str(request.url.path), error=str(exc), exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": "Internal server error",
+            "detail": str(exc) if settings.APP_ENV.lower() != "production" else None,
+        },
+    )
+
 app.add_middleware(PrometheusMiddleware)
 app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.request_id import RequestIDMiddleware
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestIDMiddleware)
 
 # ---------------------------------------------------------------------------
 # Routers
@@ -157,14 +227,15 @@ from app.websockets.connection_manager import router as websocket_router  # noqa
 from app.dashboard.routes import router as dashboard_router  # noqa: E402
 from app.api.v1.endpoints.emergency import router as emergency_router  # noqa: E402
 
+# Dashboard router first — /api/v1/calls/live must match before /api/v1/calls/{call_id}
+app.include_router(dashboard_router, tags=["dashboard"], dependencies=[Depends(require_jwt_token)])
 app.include_router(api_router, prefix=settings.API_V1_STR, dependencies=[Depends(require_jwt_token)])
 app.include_router(emergency_router, dependencies=[Depends(require_jwt_token)])
 app.include_router(websocket_router, prefix="/ws", tags=["websockets"])
-app.include_router(dashboard_router, tags=["dashboard"], dependencies=[Depends(require_jwt_token)])
-@app.get("/metrics", include_in_schema=False)
+@app.get("/metrics", include_in_schema=False, dependencies=[Depends(require_jwt_token)])
 async def protected_metrics(request: Request) -> StarletteResponse:
-    """Metrics endpoint - consider restricting in production via reverse proxy."""
-    return await metrics(request)
+    """Metrics endpoint – requires a valid JWT; restrict further at the reverse proxy in production."""
+    return metrics(request)
 
 
 # ---------------------------------------------------------------------------
@@ -178,5 +249,69 @@ async def health_check() -> dict:
     db_ok = await check_db_health()
     return {
         "status": "ok" if db_ok else "degraded",
+    }
+
+
+@app.get("/ready", tags=["health"], response_class=JSONResponse)
+async def readiness_check():
+    """Readiness probe — returns 503 until all models and services are loaded."""
+    from app.core.database import check_db_health
+    from app.core.redis_client import check_redis_health
+
+    checks = {}
+
+    # DB
+    checks["database"] = await check_db_health()
+
+    # Redis
+    checks["redis"] = await check_redis_health()
+
+    # Whisper
+    whisper_svc = getattr(app.state, "whisper_service", None)
+    checks["whisper"] = whisper_svc is not None and whisper_svc.is_ready()
+
+    # Intent model
+    intent_loader = getattr(app.state, "intent_loader", None)
+    checks["intent_model"] = intent_loader is not None and intent_loader.is_ready()
+
+    # Emotion model (optional — heuristic fallback is acceptable)
+    emotion_loader = getattr(app.state, "emotion_loader", None)
+    checks["emotion_model"] = emotion_loader is not None and emotion_loader.is_ready()
+
+    all_critical = checks["database"] and checks["whisper"] and checks["intent_model"]
+    status = "ready" if all_critical else "not_ready"
+
+    code = 200 if all_critical else 503
+    return JSONResponse(content={"status": status, "checks": checks}, status_code=code)
+
+
+_BOOT_TIME = None
+
+
+@app.get("/api/v1/system/info", tags=["system"], dependencies=[Depends(require_jwt_token)])
+async def system_info() -> dict:
+    """System information — version, uptime, model status."""
+    import time
+    global _BOOT_TIME
+    if _BOOT_TIME is None:
+        _BOOT_TIME = time.time()
+
+    whisper_svc = getattr(app.state, "whisper_service", None)
+    intent_loader = getattr(app.state, "intent_loader", None)
+    emotion_loader = getattr(app.state, "emotion_loader", None)
+
+    return {
+        "version": "1.0.0",
+        "environment": settings.APP_ENV,
+        "uptime_seconds": int(time.time() - _BOOT_TIME),
+        "models": {
+            "whisper": {"ready": whisper_svc is not None and whisper_svc.is_ready(),
+                        "size": settings.WHISPER_MODEL_SIZE},
+            "intent": {"ready": intent_loader is not None and intent_loader.is_ready(),
+                       "type": "onnx_distilbert"},
+            "emotion": {"ready": emotion_loader is not None and emotion_loader.is_ready(),
+                        "type": "onnx_cnn"},
+        },
+        "database": "postgresql" if "postgresql" in settings.SQLALCHEMY_DATABASE_URI else "sqlite",
     }
 

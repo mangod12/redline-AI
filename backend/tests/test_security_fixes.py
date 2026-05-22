@@ -37,7 +37,7 @@ class TestSecurityConfiguration:
     def test_cors_no_wildcard_in_primary_app(self):
         """CRIT-4: CORS must not use wildcard."""
         from app.core.config import settings
-        assert "*" not in settings.ALLOWED_ORIGINS
+        assert "*" not in settings.allowed_origins_list
 
     def test_emotion_model_paths_exist(self):
         """CRIT-6: Emotion model paths must be configured."""

@@ -1,9 +1,40 @@
 node_modules/
 .env
+.env.local
 coverage/
 *.log
 dist/
-# Ignore raw source datasets
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.db
+redline.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar
+
+# ML models (large files — use Git LFS or download at build time)
+ml/*.onnx
+ml/*.pt
+ml/*.bin
+
+# Raw datasets
 datasets/Fire_Department_and_Emergency_Medical_Services_Dispatched_Calls_for_Service (2).csv
 datasets/Crime_Data_from_2020_to_Present.csv
 datasets/Suicide_Detection.csv

@@ -4,30 +4,59 @@ import logging
 
 logger = logging.getLogger("redline_ai")
 
-redis_client = None
+_redis_client = None
+
 
 async def init_redis():
-    global redis_client
-    # Try real Redis first
+    global _redis_client
     try:
-        client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        client = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+            retry_on_timeout=True,
+        )
         await client.ping()
-        redis_client = client
-        logger.info("Connected to real Redis")
-    except Exception:
-        # Fall back to fakeredis for local dev (no Redis installation needed)
-        logger.warning("Real Redis not available — using fakeredis for local development")
+        _redis_client = client
+        logger.info("Connected to Redis at %s", settings.REDIS_URL)
+    except Exception as exc:
+        if settings.APP_ENV.lower() == "production":
+            logger.error("Redis connection failed in production: %s", exc)
+            raise RuntimeError(
+                f"Redis is required in production but unavailable: {exc}"
+            ) from exc
+
+        logger.warning("Redis not available — trying fakeredis for local dev")
         try:
-            import fakeredis.aioredis as fakeredis
-            redis_client = fakeredis.FakeRedis(decode_responses=True)
+            import fakeredis.aioredis as fakeredis_mod
+            _redis_client = fakeredis_mod.FakeRedis(decode_responses=True)
             logger.info("fakeredis started (in-memory, data lost on restart)")
-        except Exception as e:
-            logger.error(f"Could not start fakeredis either: {e}")
+        except ImportError:
+            logger.error("Neither Redis nor fakeredis available")
+            _redis_client = None
+
 
 async def close_redis():
-    global redis_client
-    if redis_client:
-        await redis_client.aclose()
+    global _redis_client
+    if _redis_client:
+        try:
+            await _redis_client.aclose()
+        except Exception as exc:
+            logger.warning("Error closing Redis connection: %s", exc)
+        _redis_client = None
+
 
 def get_redis_client():
-    return redis_client
+    return _redis_client
+
+
+async def check_redis_health() -> bool:
+    """Return True if Redis is reachable."""
+    if _redis_client is None:
+        return False
+    try:
+        await _redis_client.ping()
+        return True
+    except Exception:
+        return False

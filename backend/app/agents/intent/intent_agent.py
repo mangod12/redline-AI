@@ -8,6 +8,7 @@ import time
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
+import pybreaker
 from prometheus_client import Counter, Histogram
 
 from app.agents.base import BaseAgent
@@ -44,14 +45,20 @@ INTENT_FALLBACK_COUNT = Counter(
 SOFT_TIMEOUT_S = 0.5
 CONFIDENCE_THRESHOLD = 0.6
 
+_intent_breaker = pybreaker.CircuitBreaker(
+    fail_max=3,
+    reset_timeout=60,
+    name="intent_ml_breaker",
+)
+
 _KEYWORD_RULES: list[tuple[re.Pattern[str], IntentType]] = [
     (re.compile(r"\b(fire|burning|smoke|flame)\b", re.I), IntentType.FIRE),
-    (re.compile(r"\b(gun|weapon|knife|shoot|stabb|assault|attack|robbery)\b", re.I), IntentType.VIOLENT_CRIME),
-    (re.compile(r"\b(accident|collision|crash|vehicle|truck|car)\b", re.I), IntentType.ACCIDENT),
+    (re.compile(r"\b(gun|weapon|knife|shoot\w*|stabb\w*|assault\w*|attack\w*|robbery)\b", re.I), IntentType.VIOLENT_CRIME),
+    (re.compile(r"\b(accident\w*|collision|crash\w*|vehicle|truck|car|fender.?bender)\b", re.I), IntentType.ACCIDENT),
     (re.compile(r"\b(gas leak|fumes|carbon monoxide|chemical smell|gas)\b", re.I), IntentType.GAS_HAZARD),
-    (re.compile(r"\b(chest pain|not breathing|unconscious|seizure|overdose|bleed|injury|medical)\b", re.I), IntentType.MEDICAL),
-    (re.compile(r"\b(suicid|self harm|panic|mental|depressed|crisis)\b", re.I), IntentType.MENTAL_HEALTH),
-    (re.compile(r"\b(noise complaint|parking|lost wallet|non emergency|information)\b", re.I), IntentType.NON_EMERGENCY),
+    (re.compile(r"\b(chest pain|not breathing|unconscious|seizure\w*|overdose\w*|bleed\w*|injury|medical)\b", re.I), IntentType.MEDICAL),
+    (re.compile(r"\b(suicid\w*|self.?harm|panic\w*|mental|depressed|crisis)\b", re.I), IntentType.MENTAL_HEALTH),
+    (re.compile(r"\b(noise complaint|parking|lost wallet|non.?emergency|information|follow.?up)\b", re.I), IntentType.NON_EMERGENCY),
 ]
 
 
@@ -105,15 +112,31 @@ class IntentAgent(BaseAgent):
             INTENT_FALLBACK_COUNT.labels(reason="loader_unavailable").inc()
             return _keyword_fallback(text, "loader_unavailable")
 
+        if _intent_breaker.current_state == pybreaker.STATE_OPEN:
+            INTENT_FALLBACK_COUNT.labels(reason="circuit_open").inc()
+            return _keyword_fallback(text, "circuit_open")
+
         start = time.perf_counter()
         try:
             probs = await asyncio.wait_for(self._loader.predict_proba(text), timeout=SOFT_TIMEOUT_S)
             INTENT_LATENCY.observe(time.perf_counter() - start)
         except asyncio.TimeoutError:
             INTENT_FALLBACK_COUNT.labels(reason="timeout").inc()
+            try:
+                def _trip_timeout():
+                    raise TimeoutError("intent inference timeout")
+                _intent_breaker.call(_trip_timeout)
+            except Exception:
+                pass
             return _keyword_fallback(text, "timeout")
         except Exception:
             INTENT_FALLBACK_COUNT.labels(reason="exception").inc()
+            try:
+                def _trip_error():
+                    raise RuntimeError("inference_failed")
+                _intent_breaker.call(_trip_error)
+            except Exception:
+                pass
             return _keyword_fallback(text, "exception")
 
         scores: dict[IntentType, float] = {}

@@ -62,16 +62,16 @@ def add_call(
     redis = _get_redis()
     if redis:
         try:
-            # Use synchronous call since we're called from sync context sometimes
             import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Schedule as fire-and-forget
-                asyncio.ensure_future(_async_add(redis, record))
-            else:
-                loop.run_until_complete(_async_add(redis, record))
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(_async_add(redis, record))
+            task.add_done_callback(
+                lambda t: None if not t.exception() else None
+            )
+        except RuntimeError:
+            # No running event loop — skip Redis write
+            pass
         except Exception:
-            # Fall through to return call_id even if Redis fails
             pass
 
     return call_id
@@ -84,23 +84,11 @@ async def _async_add(redis, record: dict) -> None:
 
 
 def get_recent(limit: int = 50, tenant_id: str = "") -> List[Dict[str, Any]]:
-    """Return up to `limit` most-recent call records."""
-    redis = _get_redis()
-    if redis:
-        try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Can't await in sync context, return empty for now
-                # The async version should be used from async endpoints
-                return []
-            records = loop.run_until_complete(redis.lrange(_REDIS_KEY, 0, _MAXLEN - 1))
-            calls = [json.loads(r) for r in records]
-            if tenant_id:
-                calls = [c for c in calls if c.get("tenant_id") == tenant_id]
-            return calls[:limit]
-        except Exception:
-            return []
+    """Sync wrapper — prefer aget_recent() from async code.
+
+    Returns empty list when called from within a running event loop
+    (which is always the case in FastAPI). Use aget_recent() instead.
+    """
     return []
 
 

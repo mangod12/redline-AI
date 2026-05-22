@@ -10,17 +10,23 @@ from __future__ import annotations
 _CRITICAL_KW = frozenset([
     "dying", "dead", "not breathing", "gun", "shot", "stabbed",
     "explosion", "major accident", "cardiac arrest", "unconscious",
-    "no pulse", "overdose",
+    "no pulse", "overdose", "active shooter", "hostage", "mass casualty",
+    "collapsed building", "bomb", "chest pain", "seizure",
 ])
 
 _HIGH_KW = frozenset([
     "fire", "blood", "bleeding", "can't breathe", "choking",
-    "broken", "serious", "bad", "pain", "emergency",
+    "broken", "serious", "pain", "emergency",
+    "crash", "collision", "trapped", "assault", "robbery",
+    "weapon", "knife", "smoke", "gas leak", "carbon monoxide",
+    "suicide", "self harm", "heart attack", "burning",
 ])
 
 _MEDIUM_KW = frozenset([
     "hurt", "injury", "sick", "fell", "help", "scared",
-    "worried", "anxiety",
+    "worried", "anxiety", "accident", "fender bender",
+    "dizzy", "faint", "mental", "crisis", "panic",
+    "distress", "agitated", "bad",
 ])
 
 # Emotions that boost severity level up by one tier
@@ -38,8 +44,11 @@ async def compute_severity(transcript: str, emotion: str) -> str:
     """
     lower = transcript.lower()
 
-    # Score keyword hits
-    if any(kw in lower for kw in _CRITICAL_KW):
+    # Check for explicit non-emergency phrases first (prevents "emergency" substring match)
+    _NON_EMERGENCY_PHRASES = ("non emergency", "non-emergency", "nonemergency", "follow up", "follow-up")
+    if any(phrase in lower for phrase in _NON_EMERGENCY_PHRASES):
+        base = "low"
+    elif any(kw in lower for kw in _CRITICAL_KW):
         base = "critical"
     elif any(kw in lower for kw in _HIGH_KW):
         base = "high"
@@ -52,7 +61,6 @@ async def compute_severity(transcript: str, emotion: str) -> str:
     if emotion in _HIGH_URGENCY_EMOTIONS:
         base = _promote(base)
     elif emotion in _MEDIUM_URGENCY_EMOTIONS:
-        # Only promote low → medium
         if base == "low":
             base = "medium"
 

@@ -6,6 +6,20 @@ from app.core.config import settings
 
 logger = logging.getLogger("redline_ai.translation")
 
+# Module-level shared client — reused across all TranslationService instances
+_shared_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    global _shared_client
+    if _shared_client is None or _shared_client.is_closed:
+        _shared_client = httpx.AsyncClient(
+            timeout=10.0,
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
+    return _shared_client
+
+
 class TranslationService:
     """Translation service using LibreTranslate (Open Source)."""
 
@@ -16,36 +30,30 @@ class TranslationService:
         if parsed.scheme not in ("http", "https"):
             raise ValueError(f"Invalid translation service URL scheme: {parsed.scheme}")
         self.api_url = api_url
-        self._client = httpx.AsyncClient(timeout=10.0)
 
     async def close(self):
-        await self._client.aclose()
+        pass  # Client is shared; closed at app shutdown
 
     async def translate(self, text: str, source_lang: str) -> str:
-        """Translate text using LibreTranslate.
-
-        Args:
-            text: Text to translate.
-            source_lang: Source language code (e.g., 'es', 'fr').
-        """
         if not source_lang or source_lang.lower().startswith("en"):
             return text
 
         payload = {
             "q": text,
-            "source": source_lang.lower()[:2], # Take first two chars
+            "source": source_lang.lower()[:2],
             "target": "en",
             "format": "text"
         }
 
         try:
-            response = await self._client.post(self.api_url, data=payload)
+            client = _get_client()
+            response = await client.post(self.api_url, data=payload)
 
             if response.status_code == 200:
                 return response.json().get("translatedText", text)
             else:
-                logger.warning(f"LibreTranslate returned status {response.status_code}")
+                logger.warning("LibreTranslate returned status %s", response.status_code)
         except Exception as e:
-            logger.error(f"Translation error: {e}")
+            logger.error("Translation error: %s", e)
 
-        return text  # Return original text on translation failure
+        return text

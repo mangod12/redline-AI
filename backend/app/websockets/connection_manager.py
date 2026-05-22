@@ -5,11 +5,18 @@ import logging
 from typing import Dict
 from uuid import UUID
 
+from prometheus_client import Gauge
+
 from app.api.deps import get_current_user
 from app.core.redis_client import get_redis_client
 
 router = APIRouter()
 logger = logging.getLogger("redline_ai")
+
+WEBSOCKET_CONNECTIONS = Gauge(
+    "websocket_active_connections",
+    "Number of active WebSocket connections",
+)
 
 class ConnectionManager:
     def __init__(self):
@@ -89,7 +96,8 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
         return
 
     await manager.connect(websocket, call_id)
-    
+    WEBSOCKET_CONNECTIONS.inc()
+
     redis = get_redis_client()
     if not redis:
         logger.error("Redis not initialized for websockets")
@@ -100,27 +108,55 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
     channel_name = f"call_events:{call_id}"
     await pubsub.subscribe(channel_name)
 
-    try:
-        while True:
-            # We are waiting for client messages if needed, otherwise loop.
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-            if message:
-                data = json.loads(message["data"])
-                # convert to web-socket friendly format
-                simplified = {
-                    "type": data.get("event_type", "").lower(),
-                    **data.get("payload", {}),
-                    "call_id": data.get("call_id"),
-                }
-                await manager.broadcast_to_call(call_id, simplified)
-                
-            # Yield to other tasks
-            await asyncio.sleep(0.01)
+    async def _pubsub_listener():
+        async for raw_message in pubsub.listen():
+            if raw_message["type"] == "message":
+                try:
+                    data = json.loads(raw_message["data"])
+                    simplified = {
+                        "type": data.get("event_type", "").lower(),
+                        **data.get("payload", {}),
+                        "call_id": data.get("call_id"),
+                    }
+                    await manager.broadcast_to_call(call_id, simplified)
+                except (json.JSONDecodeError, KeyError) as exc:
+                    logger.warning(f"Malformed pubsub message: {exc}")
 
+    async def _keepalive_ping():
+        """Send a ping frame every 30s to detect stale connections."""
+        try:
+            while True:
+                await asyncio.sleep(30)
+                await websocket.send_json({"type": "ping"})
+        except (WebSocketDisconnect, Exception):
+            raise
+
+    listener_task = asyncio.create_task(_pubsub_listener())
+    ping_task = asyncio.create_task(_keepalive_ping())
+
+    try:
+        done, pending = await asyncio.wait(
+            [listener_task, ping_task],
+            return_when=asyncio.FIRST_EXCEPTION,
+        )
+        # Cancel whichever task is still running
+        for task in pending:
+            task.cancel()
+        # Re-raise the first real exception (if any)
+        for task in done:
+            exc = task.exception()
+            if exc is not None:
+                raise exc
     except WebSocketDisconnect:
-        manager.disconnect(websocket, call_id)
-        await pubsub.unsubscribe(channel_name)
+        pass
+    except asyncio.CancelledError:
+        pass
     except Exception as e:
         logger.error(f"WebSocket Error: {e}")
+    finally:
+        WEBSOCKET_CONNECTIONS.dec()
         manager.disconnect(websocket, call_id)
-        await pubsub.unsubscribe(channel_name)
+        try:
+            await pubsub.unsubscribe(channel_name)
+        except Exception:
+            pass

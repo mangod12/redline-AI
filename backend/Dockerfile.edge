@@ -1,0 +1,73 @@
+# Dockerfile.edge — Minimal image for edge / Jetson / low-resource deployment
+# Build:  docker build -f Dockerfile.edge -t redline-ai:edge .
+# Run:    docker run -p 8000:8000 --env-file .env redline-ai:edge
+
+FROM python:3.11-slim AS base
+
+# ---- Build arguments --------------------------------------------------------
+ARG WHISPER_MODEL_SIZE=tiny
+
+# ---- Environment: low-memory / single-thread optimizations -----------------
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    # Whisper
+    WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE} \
+    # CPU thread pinning — critical for edge devices
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    NUMEXPR_MAX_THREADS=1 \
+    # ONNX Runtime: single thread, no parallelism
+    ORT_NUM_THREADS=1 \
+    ORT_PARALLEL_EXECUTION_MODE=0 \
+    # PyTorch
+    TORCH_NUM_THREADS=1 \
+    # Uvicorn
+    UVICORN_WORKERS=1 \
+    UVICORN_HOST=0.0.0.0 \
+    UVICORN_PORT=8000
+
+WORKDIR /app
+
+# ---- System dependencies (minimal) -----------------------------------------
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---- Step 1: CPU-only PyTorch (tiny ~200 MB vs ~3 GB CUDA) -----------------
+RUN pip install --no-cache-dir \
+    torch==2.2.2 \
+    torchaudio==2.2.2 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# ---- Step 2: Python dependencies -------------------------------------------
+COPY requirements.txt .
+# Skip gunicorn (not needed for single-worker edge) and GPU packages
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ---- Step 3: Application code ----------------------------------------------
+COPY . .
+
+# ---- Non-root user ---------------------------------------------------------
+RUN useradd --create-home --shell /bin/bash --no-log-init edge \
+    && chown -R edge:edge /app
+USER edge
+
+# ---- Expose port ------------------------------------------------------------
+EXPOSE 8000
+
+# ---- Health check -----------------------------------------------------------
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD curl -sf http://localhost:8000/ready || exit 1
+
+# ---- Entrypoint: single uvicorn worker (no gunicorn overhead) ---------------
+CMD ["python", "-m", "uvicorn", "app.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "1", \
+     "--timeout-keep-alive", "30", \
+     "--log-level", "warning"]
