@@ -86,11 +86,13 @@ class TestRedisHealthCheck:
     @pytest.mark.asyncio
     async def test_returns_false_when_no_client(self):
         """When Redis isn't initialized, health check returns False."""
+        from unittest.mock import patch
+
         from app.core.redis_client import check_redis_health
 
-        # Without initialization, should return False
-        result = await check_redis_health()
-        assert result is False
+        with patch("app.core.redis_client._redis_client", None):
+            result = await check_redis_health()
+            assert result is False
 
 
 class TestDockerEntrypoint:
