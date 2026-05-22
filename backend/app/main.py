@@ -91,6 +91,19 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         log.warning("Database init failed — tables may already exist or DB not ready", error=str(exc))
 
+    # 3b. Download ML models from GCS if available (Cloud Run)
+    gcs_bucket = getattr(settings, "GCS_MODEL_BUCKET", "")
+    if gcs_bucket:
+        from app.core.model_downloader import download_models_from_gcs
+        model_paths = await asyncio.get_running_loop().run_in_executor(
+            None, download_models_from_gcs, gcs_bucket
+        )
+        # Override config paths with downloaded models
+        if "intent_model.onnx" in model_paths:
+            settings.INTENT_ONNX_PATH = model_paths["intent_model.onnx"]
+        if "emotion_model.onnx" in model_paths:
+            settings.EMOTION_ONNX_PATH = model_paths["emotion_model.onnx"]
+
     # 4. Local Whisper STT model (CPU), loaded off the event loop
     whisper_service = WhisperService(model_size=settings.WHISPER_MODEL_SIZE)
     loop = asyncio.get_running_loop()

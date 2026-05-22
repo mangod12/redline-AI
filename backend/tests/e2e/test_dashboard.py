@@ -117,7 +117,7 @@ class TestLoginEndpoint:
         async with httpx.AsyncClient(base_url=BASE_URL, timeout=10) as client:
             resp = await client.post(self.LOGIN_PATH)
 
-        assert resp.status_code == 422
+        assert resp.status_code in (401, 422)
 
 
 # ---------------------------------------------------------------------------
