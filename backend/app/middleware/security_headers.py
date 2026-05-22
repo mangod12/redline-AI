@@ -14,8 +14,11 @@ _SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
     (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
     (
         b"content-security-policy",
-        b"default-src 'self'; script-src 'self' 'unsafe-inline'; "
-        b"style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'",
+        b"default-src 'self'; "
+        b"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; "
+        b"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        b"img-src 'self' data: https://fastapi.tiangolo.com; "
+        b"font-src 'self' https://cdn.jsdelivr.net",
     ),
 ]
 
