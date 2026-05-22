@@ -88,6 +88,9 @@ class Settings(BaseSettings):
         int8 = Path(self.EMOTION_ONNX_INT8_PATH)
         return str(int8) if int8.exists() else self.EMOTION_ONNX_PATH
 
+    # ---- GCS model download (Cloud Run) ------------------------------------
+    GCS_MODEL_BUCKET: str = ""
+
     # ---- Whisper STT (local, no paid API) ---------------------------------
     # Model size: tiny | base | small | medium | large
     # "small" balances accuracy + speed on CPU.  Override via WHISPER_MODEL_SIZE env.

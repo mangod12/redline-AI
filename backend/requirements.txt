@@ -50,6 +50,9 @@ twilio>=9.0.0,<10.0
 jinja2>=3.1.0,<4.0
 aiofiles>=23.0.0,<24.0
 
+# ---- Cloud (GCS model download for Cloud Run) ----------------------------
+google-cloud-storage>=2.14.0,<3.0
+
 # ---- HTTP clients -------------------------------------------------------
 httpx>=0.25.2,<1.0
 

@@ -92,11 +92,10 @@ async def lifespan(app: FastAPI):
         log.warning("Database init failed — tables may already exist or DB not ready", error=str(exc))
 
     # 3b. Download ML models from GCS if available (Cloud Run)
-    gcs_bucket = getattr(settings, "GCS_MODEL_BUCKET", "")
-    if gcs_bucket:
+    if settings.GCS_MODEL_BUCKET:
         from app.core.model_downloader import download_models_from_gcs
         model_paths = await asyncio.get_running_loop().run_in_executor(
-            None, download_models_from_gcs, gcs_bucket
+            None, download_models_from_gcs, settings.GCS_MODEL_BUCKET
         )
         # Override config paths with downloaded models
         if "intent_model.onnx" in model_paths:
