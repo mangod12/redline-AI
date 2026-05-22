@@ -147,7 +147,7 @@ class EmotionModelLoader:
 
     async def shutdown(self) -> None:
         """Release resources."""
-        self._executor.shutdown(wait=False)
+        self._executor.shutdown(wait=True)
         with self._lock:
             self._session = None
             self._ready = False

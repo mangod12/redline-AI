@@ -217,6 +217,19 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     log.error(
         "Unhandled exception", path=str(request.url.path), error=str(exc), exc_info=True
     )
+    # Audit security-relevant unhandled errors
+    try:
+        from app.services.audit_service import audit_event
+
+        audit_event(
+            action="unhandled_exception",
+            tenant_id="system",
+            entity_type="http_request",
+            entity_id=str(request.url.path),
+            details={"error": str(exc)[:500], "method": request.method},
+        )
+    except Exception:
+        pass
     return JSONResponse(
         status_code=500,
         content={

@@ -33,6 +33,8 @@ def _get_redis_sync() -> redis.Redis:
     max_retries=3,
     default_retry_delay=5,
     acks_late=True,
+    retry_backoff=True,
+    retry_backoff_max=60,
 )
 def process_emergency_call(
     self,
@@ -95,6 +97,8 @@ def process_emergency_call(
     max_retries=3,
     default_retry_delay=5,
     acks_late=True,
+    retry_backoff=True,
+    retry_backoff_max=60,
 )
 def send_dispatch_notification(
     self,

@@ -55,7 +55,9 @@ FALLBACK_USAGE_COUNT = Counter(
 # Constants
 # ---------------------------------------------------------------------------
 
-_INFERENCE_TIMEOUT_S: float = 3.0
+from app.core.config import settings as _settings
+
+_INFERENCE_TIMEOUT_S: float = _settings.INFERENCE_TIMEOUT_S
 _CONFIDENCE_THRESHOLD: float = 0.5
 
 _URGENCY_KEYWORDS: frozenset[str] = frozenset(
@@ -324,7 +326,7 @@ class EmotionAgent(BaseAgent):
 
         try:
             # Stage 1: Wait for ML within the soft budget
-            ml_result = await asyncio.wait_for(asyncio.shield(ml_task), timeout=0.8)
+            ml_result = await asyncio.wait_for(asyncio.shield(ml_task), timeout=_settings.ML_SOFT_BUDGET_S)
             if ml_result and ml_result.confidence >= _CONFIDENCE_THRESHOLD:
                 bound_log.info(
                     "ML inference successful within budget",

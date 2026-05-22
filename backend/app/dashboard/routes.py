@@ -12,11 +12,14 @@ from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.core.config import settings
 from app.core.security import require_jwt_token
 from app.dashboard import call_store
 
 router = APIRouter()
 logger = logging.getLogger("redline_ai.dashboard")
+
+_MAX_PUBSUB_MESSAGE_BYTES = 256 * 1024
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -104,6 +107,11 @@ async def ws_dashboard(websocket: WebSocket):
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
+    # Rate limit: cap total dashboard WS connections
+    if len(_dashboard_clients) >= settings.MAX_WS_CONNECTIONS:
+        await websocket.close(code=4429, reason="Too many connections")
+        return
+
     await websocket.accept()
     _dashboard_clients.add(websocket)
 
@@ -132,7 +140,11 @@ async def ws_dashboard(websocket: WebSocket):
                     if raw_message["type"] != "message":
                         continue
                     try:
-                        data = json.loads(raw_message["data"])
+                        raw_data = raw_message["data"]
+                        if isinstance(raw_data, (str, bytes)) and len(raw_data) > _MAX_PUBSUB_MESSAGE_BYTES:
+                            logger.warning("Oversized pubsub message dropped (%d bytes)", len(raw_data))
+                            continue
+                        data = json.loads(raw_data)
                     except (json.JSONDecodeError, TypeError):
                         continue
 

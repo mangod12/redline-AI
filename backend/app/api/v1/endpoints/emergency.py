@@ -137,10 +137,20 @@ async def process_emergency(
     content_type = request.headers.get("content-type", "")
     if transcript is None and audio_file is None and "application/json" in content_type:
         try:
-            body = await request.json()
+            body_bytes = await request.body()
+            if len(body_bytes) > settings.MAX_JSON_BODY_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"JSON body exceeds {settings.MAX_JSON_BODY_BYTES // 1024} KB limit",
+                )
+            import json as _json
+
+            body = _json.loads(body_bytes)
             json_req = EmergencyJSONRequest.model_validate(body)
             transcript = json_req.transcript
             caller_id = caller_id or json_req.caller_id
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

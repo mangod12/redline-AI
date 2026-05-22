@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from prometheus_client import Gauge
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.core.redis_client import get_redis_client
 
 router = APIRouter()
@@ -17,6 +18,8 @@ WEBSOCKET_CONNECTIONS = Gauge(
     "websocket_active_connections",
     "Number of active WebSocket connections",
 )
+
+_MAX_PUBSUB_MESSAGE_BYTES = 256 * 1024  # 256 KB guard for Redis JSON
 
 
 class ConnectionManager:
@@ -101,8 +104,8 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
             call_record = result.scalar_one_or_none()
             if (
                 call_record
-                and hasattr(call_record, "tenant_id")
-                and call_record.tenant_id
+                and getattr(call_record, "tenant_id", None) is not None
+                and user_tenant is not None
                 and str(call_record.tenant_id) != str(user_tenant)
             ):
                 await websocket.close(code=4003, reason="Access denied to this call")
@@ -110,6 +113,12 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
     except Exception as exc:
         logger.error(f"Tenant verification failed for call {call_id}: {exc}")
         await websocket.close(code=4503, reason="Tenant verification unavailable")
+        return
+
+    # Rate limit: cap total WebSocket connections
+    total_conns = sum(len(v) for v in manager.active_connections.values())
+    if total_conns >= settings.MAX_WS_CONNECTIONS:
+        await websocket.close(code=4429, reason="Too many connections")
         return
 
     await manager.connect(websocket, call_id)
@@ -129,7 +138,11 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
         async for raw_message in pubsub.listen():
             if raw_message["type"] == "message":
                 try:
-                    data = json.loads(raw_message["data"])
+                    raw_data = raw_message["data"]
+                    if isinstance(raw_data, (str, bytes)) and len(raw_data) > _MAX_PUBSUB_MESSAGE_BYTES:
+                        logger.warning("Oversized pubsub message dropped (%d bytes)", len(raw_data))
+                        continue
+                    data = json.loads(raw_data)
                     simplified = {
                         "type": data.get("event_type", "").lower(),
                         **data.get("payload", {}),

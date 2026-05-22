@@ -108,6 +108,11 @@ class Settings(BaseSettings):
         "audio/flac",
     ]
     MAX_TRANSCRIPT_LENGTH: int = 10_000  # characters
+    MAX_JSON_BODY_BYTES: int = 1 * 1024 * 1024  # 1 MB
+    MAX_WS_CONNECTIONS: int = 100
+    INFERENCE_TIMEOUT_S: float = 3.0
+    ML_SOFT_BUDGET_S: float = 0.8
+    DB_QUERY_TIMEOUT_S: float = 10.0
 
     # ---- CORS -----------------------------------------------------------
     # Comma-separated list of allowed origins, e.g.:

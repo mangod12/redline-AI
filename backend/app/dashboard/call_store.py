@@ -7,9 +7,12 @@ Stores last 100 calls with tenant_id for filtering.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import UTC, datetime, timezone
 from typing import Any
+
+logger = logging.getLogger("redline_ai.dashboard.call_store")
 
 _REDIS_KEY = "redline:dashboard:calls"
 _MAXLEN = 100
@@ -70,12 +73,16 @@ def add_call(
 
             loop = asyncio.get_running_loop()
             task = loop.create_task(_async_add(redis, record))
-            task.add_done_callback(lambda t: None if not t.exception() else None)
+            task.add_done_callback(
+                lambda t: logger.warning("call_store write failed: %s", t.exception())
+                if t.exception()
+                else None
+            )
         except RuntimeError:
             # No running event loop — skip Redis write
             pass
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("call_store add_call error: %s", exc)
 
     return call_id
 
