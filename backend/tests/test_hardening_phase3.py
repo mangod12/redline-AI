@@ -1221,7 +1221,7 @@ class TestCallStoreAddCall:
                     t.cancel()
                 return result
 
-        call_id = asyncio.get_event_loop().run_until_complete(_run())
+        call_id = asyncio.run(_run())
         assert isinstance(call_id, str)
 
 
