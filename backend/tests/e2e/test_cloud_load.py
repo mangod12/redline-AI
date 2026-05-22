@@ -25,7 +25,13 @@ TRANSCRIPTS = [
 ]
 
 
-@pytest.mark.skipif(not CLOUD_URL, reason="CLOUD_URL not set")
+CLOUD_AUTH_TOKEN = os.getenv("CLOUD_AUTH_TOKEN", "")
+
+
+@pytest.mark.skipif(
+    not CLOUD_URL or not CLOUD_AUTH_TOKEN,
+    reason="CLOUD_URL and CLOUD_AUTH_TOKEN required for load tests",
+)
 class TestCloudLoad:
 
     @pytest.mark.asyncio
@@ -46,6 +52,7 @@ class TestCloudLoad:
                 t0 = time.perf_counter()
                 r = await client.post(
                     f"{CLOUD_URL}/process-emergency",
+                    headers={"Authorization": f"Bearer {CLOUD_AUTH_TOKEN}"},
                     json={"transcript": t},
                 )
                 ms = (time.perf_counter() - t0) * 1000
@@ -68,6 +75,7 @@ class TestCloudLoad:
             try:
                 r = await client.post(
                     f"{CLOUD_URL}/process-emergency",
+                    headers={"Authorization": f"Bearer {CLOUD_AUTH_TOKEN}"},
                     json={"transcript": t, "caller_id": f"load-{i}"},
                 )
                 ms = (time.perf_counter() - t0) * 1000
