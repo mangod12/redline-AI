@@ -279,6 +279,14 @@ app.include_router(emergency_router, dependencies=[Depends(require_jwt_token)])
 app.include_router(websocket_router, prefix="/ws", tags=["websockets"])
 
 
+@app.get("/", include_in_schema=False)
+async def root_redirect():
+    """Redirect root to dashboard."""
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse(url="/dashboard")
+
+
 @app.get("/metrics", include_in_schema=False, dependencies=[Depends(require_jwt_token)])
 async def protected_metrics(request: Request) -> StarletteResponse:
     """Metrics endpoint – requires a valid JWT; restrict further at the reverse proxy in production."""
