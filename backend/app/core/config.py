@@ -102,10 +102,15 @@ class Settings(BaseSettings):
     #   ALLOWED_ORIGINS=https://app.redline.ai,https://admin.redline.ai
     # Set to "*" only in local development (handled by the lifespan check).
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    ALLOWED_ORIGIN: str = ""  # Cloud Run compat (singular)
 
     @property
     def allowed_origins_list(self) -> list[str]:
-        return [s.strip() for s in self.ALLOWED_ORIGINS.split(",") if s.strip()]
+        raw = self.ALLOWED_ORIGINS
+        # Cloud Run sets ALLOWED_ORIGIN (singular) — merge both
+        if self.ALLOWED_ORIGIN and self.ALLOWED_ORIGIN not in raw:
+            raw = f"{raw},{self.ALLOWED_ORIGIN}" if raw else self.ALLOWED_ORIGIN
+        return [s.strip() for s in raw.split(",") if s.strip()]
 
     # ---- Docs -----------------------------------------------------------
     # Disable Swagger / ReDoc in production

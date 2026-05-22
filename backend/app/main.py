@@ -237,9 +237,8 @@ from app.dashboard.routes import router as dashboard_router  # noqa: E402
 from app.websockets.connection_manager import router as websocket_router  # noqa: E402
 
 # Dashboard router first — /api/v1/calls/live must match before /api/v1/calls/{call_id}
-app.include_router(
-    dashboard_router, tags=["dashboard"], dependencies=[Depends(require_jwt_token)]
-)
+# No router-level auth: /dashboard page is public, data endpoints have their own auth
+app.include_router(dashboard_router, tags=["dashboard"])
 app.include_router(
     api_router, prefix=settings.API_V1_STR, dependencies=[Depends(require_jwt_token)]
 )
