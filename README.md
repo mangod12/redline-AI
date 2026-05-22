@@ -20,13 +20,26 @@
 
 ---
 
-## Screenshots
+## Live Demo
 
-| Dispatcher Dashboard | Readiness Probe |
+> **Try it:** [redline-ai-359883234654.us-central1.run.app/demo](https://redline-ai-359883234654.us-central1.run.app/demo)
+
+### Emergency Analysis — Fire Scenario
+![Fire Analysis](docs/screenshots/cloud-demo-fire-result.png)
+> "Building on fire, people trapped" &rarr; **Intent: Fire** | **Severity: HIGH** | **Dispatch: fire_dispatch** | 2.5s (cold start)
+
+### Emergency Analysis — Medical Scenario
+![Medical Analysis](docs/screenshots/cloud-demo-medical-result.png)
+> "Someone collapsed not breathing at the mall" &rarr; **Intent: Medical** | **Severity: CRITICAL** | **Dispatch: ambulance** | 148ms
+
+### Dashboard Login & System Health
+| Dashboard Login | Health Status |
 |:---:|:---:|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Readiness](docs/screenshots/readiness.png) |
+| ![Login](docs/screenshots/cloud-dashboard.png) | ![Health](docs/screenshots/cloud-health.png) |
 
-> Dashboard shows 8 live emergency calls with intent classification, emotion analysis, severity scoring, dispatch routing, and latency — all processed in 1-43ms.
+### Local Dispatcher Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+> 8 live emergency calls processed in 1-43ms with intent, emotion, severity, dispatch routing, and fallback flags.
 
 ---
 
