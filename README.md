@@ -8,7 +8,9 @@
   <img src="https://img.shields.io/badge/Whisper-STT-FF6F00?style=flat-square" />
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/K8s-Production-326CE5?style=flat-square&logo=kubernetes&logoColor=white" />
-  <img src="https://img.shields.io/badge/Tests-202-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/Tests-409-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/E2E-33_passed-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/Cloud_Run-Live-4285F4?style=flat-square&logo=googlecloud&logoColor=white" />
   <img src="https://img.shields.io/badge/License-ISC-blue?style=flat-square" />
 </p>
 
@@ -20,9 +22,26 @@
 
 ---
 
-## Live Demo
+## Cloud Deployment Status
 
-> **Try it:** [redline-ai-359883234654.us-central1.run.app/demo](https://redline-ai-359883234654.us-central1.run.app/demo)
+**Live on Google Cloud Run:** [redline-ai-359883234654.us-central1.run.app](https://redline-ai-359883234654.us-central1.run.app)
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Database (Cloud SQL) | **Connected** | PostgreSQL via Cloud SQL Auth Proxy |
+| Redis | **Connected** | In-memory cache + pub/sub |
+| Whisper STT | **Ready** | Tiny model (Cloud Run optimized) |
+| Intent Model | **Ready** | ONNX DistilBERT (downloaded from GCS) |
+| Emotion Model | **Ready** | ONNX CNN (downloaded from GCS) |
+| Dashboard | **Live** | [/dashboard](https://redline-ai-359883234654.us-central1.run.app/dashboard) |
+| Swagger Docs | **Live** | [/docs](https://redline-ai-359883234654.us-central1.run.app/docs) |
+| Health Probe | **OK** | [/health](https://redline-ai-359883234654.us-central1.run.app/health) |
+
+### Screenshots
+
+| Dispatcher Dashboard | Swagger API Docs |
+|:---:|:---:|
+| ![Dashboard](docs/screenshots/cloud-dashboard.png) | ![Health](docs/screenshots/cloud-health.png) |
 
 ### Emergency Analysis — Fire Scenario
 ![Fire Analysis](docs/screenshots/cloud-demo-fire-result.png)
@@ -31,11 +50,6 @@
 ### Emergency Analysis — Medical Scenario
 ![Medical Analysis](docs/screenshots/cloud-demo-medical-result.png)
 > "Someone collapsed not breathing at the mall" &rarr; **Intent: Medical** | **Severity: CRITICAL** | **Dispatch: ambulance** | 148ms
-
-### Dashboard Login & System Health
-| Dashboard Login | Health Status |
-|:---:|:---:|
-| ![Login](docs/screenshots/cloud-dashboard.png) | ![Health](docs/screenshots/cloud-health.png) |
 
 ### Local Dispatcher Dashboard
 ![Dashboard](docs/screenshots/dashboard.png)
@@ -99,7 +113,7 @@
 | **Performance** | 1-2ms text pipeline, bounded Whisper concurrency (semaphore + dedicated thread pool), DB pool 10+20 overflow, httpx connection pooling |
 | **Scalability** | Kubernetes manifests (Deployment + HPA + ConfigMap), Celery background tasks, PostgreSQL with performance indexes |
 | **Edge Ready** | `Dockerfile.edge` for Jetson/low-RAM (single thread, tiny Whisper, INT8 quantization script) |
-| **Testing** | 202 tests (unit + concurrency + load simulation + E2E scaffold), 98.7% fallback accuracy, CI/CD with 5-job GitHub Actions pipeline |
+| **Testing** | 409 tests (376 unit + 33 E2E with Playwright), 98.7% fallback accuracy, CI/CD with 5-job GitHub Actions pipeline |
 | **Multi-tenant** | Tenant isolation in DB, WebSocket, dashboard, rate limiting, audit trail |
 
 ## Quick Start
@@ -190,7 +204,9 @@ With ONNX models loaded, intent and emotion use ML inference with keyword fallba
 | Resilience | pybreaker circuit breakers + slowapi rate limiting |
 | Dashboard | Jinja2 + Tailwind + WebSocket real-time |
 | CI/CD | GitHub Actions (lint, test, typecheck, security, docker) |
-| Deployment | Docker Compose / Kubernetes / Edge (Jetson) |
+| Cloud | Google Cloud Run + Cloud SQL + GCS model storage |
+| Deployment | Docker Compose / Kubernetes / Edge (Jetson) / Cloud Run |
+| E2E Testing | Playwright + httpx (33 tests against live deployment) |
 
 ## Project Structure
 
@@ -210,7 +226,7 @@ backend/
     tasks.py         # Celery background tasks
     worker.py        # Celery app configuration
     main.py          # FastAPI app, lifespan, middleware stack
-  tests/             # 202 tests (unit, edge, concurrency, load, e2e)
+  tests/             # 409 tests (unit, edge, concurrency, load, e2e + Playwright)
   alembic/           # Database migrations
   grafana/           # Dashboard JSON + provisioning
   ml_service/        # Standalone ML analysis microservice
@@ -248,6 +264,28 @@ k8s/
 
 ## Testing
 
+**409 total tests** — 376 unit + 33 E2E (Playwright browser + httpx API)
+
+### Test Results (latest run)
+
+| Suite | Tests | Status |
+|-------|-------|--------|
+| Unit tests | 376 | **passed** |
+| E2E: Health & Readiness | 4 | **passed** |
+| E2E: Docs / OpenAPI | 2 | **passed** |
+| E2E: Dashboard (httpx) | 3 | **passed** |
+| E2E: Auth | 2 | **passed** |
+| E2E: Security Headers | 2 | **passed** |
+| E2E: Pipeline Auth Guards | 3 | **passed** |
+| E2E: Playwright Dashboard | 3 | **passed** |
+| E2E: Playwright Docs/Health | 2 | **passed** |
+| E2E: Screenshots | 2 | **passed** |
+| E2E: Console Errors | 1 | **passed** |
+| E2E: Network Failures | 1 | **passed** |
+| E2E: Dashboard Browser (pytest-playwright) | 2 | **passed** |
+| E2E: API (httpx async) | 6 | **passed** |
+| Load tests | 2 | skipped (need auth token) |
+
 ```bash
 # Unit tests (no infra needed)
 cd backend && python -m pytest tests/ -v
@@ -261,8 +299,18 @@ SECRET_KEY=test python -m pytest tests/test_load_simulation.py -v
 # Evaluate fallback accuracy
 python ml/evaluate_fallback.py
 
-# E2E (requires running server)
+# E2E against local server
 E2E_BASE_URL=http://localhost:8000 python -m pytest tests/e2e/ -v
+
+# E2E against live Cloud Run (Playwright + httpx)
+CLOUD_URL=https://redline-ai-359883234654.us-central1.run.app \
+E2E_BASE_URL=https://redline-ai-359883234654.us-central1.run.app \
+  python -m pytest tests/e2e/ -v
+
+# Load tests (requires auth token)
+CLOUD_URL=https://redline-ai-359883234654.us-central1.run.app \
+CLOUD_AUTH_TOKEN=your-jwt-token \
+  python -m pytest tests/e2e/test_cloud_load.py -v -s
 ```
 
 ## Edge Deployment
