@@ -70,3 +70,4 @@ soundfile>=0.12.1
 ruff>=0.4.0
 pip-audit>=2.7.0
 bandit>=1.7.0
+python-json-logger>=2.0.0
