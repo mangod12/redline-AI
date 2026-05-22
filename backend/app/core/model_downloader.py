@@ -24,8 +24,8 @@ def download_models_from_gcs(bucket_name: str, local_dir: str = "/tmp/models") -
     os.makedirs(local_dir, exist_ok=True)
 
     models = {
-        "intent_model.onnx": f"models/intent_model.onnx",
-        "emotion_model.onnx": f"models/emotion_model.onnx",
+        "intent_model.onnx": "models/intent_model.onnx",
+        "emotion_model.onnx": "models/emotion_model.onnx",
     }
 
     downloaded = {}
