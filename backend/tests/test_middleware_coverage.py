@@ -158,10 +158,13 @@ class TestRequestIDMiddleware:
 class TestRedisClientModule:
     @pytest.mark.asyncio
     async def test_check_redis_health_false_when_not_initialized(self):
+        from unittest.mock import patch
+
         from app.core.redis_client import check_redis_health
 
-        result = await check_redis_health()
-        assert result is False
+        with patch("app.core.redis_client._redis_client", None):
+            result = await check_redis_health()
+            assert result is False
 
     def test_get_redis_client_returns_none_initially(self):
         from app.core.redis_client import get_redis_client
