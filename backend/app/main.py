@@ -83,10 +83,13 @@ async def lifespan(app: FastAPI):
     await init_redis()
 
     # 3. Database schema (MVP bootstrap — idempotent on restarts)
-    async with engine.begin() as conn:
-        await conn.run_sync(
-            lambda sync_conn: Base.metadata.create_all(sync_conn, checkfirst=True)
-        )
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(
+                lambda sync_conn: Base.metadata.create_all(sync_conn, checkfirst=True)
+            )
+    except Exception as exc:
+        log.warning("Database init failed — tables may already exist or DB not ready", error=str(exc))
 
     # 4. Local Whisper STT model (CPU), loaded off the event loop
     whisper_service = WhisperService(model_size=settings.WHISPER_MODEL_SIZE)
