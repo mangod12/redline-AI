@@ -34,7 +34,10 @@ _CRITICAL_FLOOR_KEYWORDS: tuple[str, ...] = (
 
 _KEYWORD_WEIGHTS: tuple[tuple[float, tuple[str, ...]], ...] = (
     (0.95, ("active shooter", "mass casualty", "explosion", "hostage")),
-    (0.85, ("gun", "weapon", "stabbing", "severe bleeding", "building fire", "house fire")),
+    (
+        0.85,
+        ("gun", "weapon", "stabbing", "severe bleeding", "building fire", "house fire"),
+    ),
     (0.7, ("fire", "smoke", "overdose", "unconscious", "assault", "crash", "gas leak")),
     (0.5, ("injury", "pain", "fight", "accident", "distress", "panic")),
     (0.2, ("noise complaint", "parking", "lost wallet", "information", "follow up")),
@@ -94,13 +97,21 @@ class SeverityAgent(BaseAgent):
         return SeverityAssessment
 
     async def process(self, input_data: ReasoningOutput) -> SeverityAssessment:
-        transcript = str(input_data.metadata.get("transcript", input_data.context_summary))
-        intent = _resolve_intent(str(input_data.metadata.get("intent", IntentType.UNKNOWN.value)))
+        transcript = str(
+            input_data.metadata.get("transcript", input_data.context_summary)
+        )
+        intent = _resolve_intent(
+            str(input_data.metadata.get("intent", IntentType.UNKNOWN.value))
+        )
         intent_score = _INTENT_BASELINE[intent]
 
         keyword_score = _keyword_score(transcript)
-        emotion_intensity = _clamp_01(float(input_data.metadata.get("emotion_intensity", 0.0)))
-        reasoning_score = _clamp_01(float(input_data.metadata.get("reasoning_score", input_data.confidence)))
+        emotion_intensity = _clamp_01(
+            float(input_data.metadata.get("emotion_intensity", 0.0))
+        )
+        reasoning_score = _clamp_01(
+            float(input_data.metadata.get("reasoning_score", input_data.confidence))
+        )
 
         score = (
             0.5 * intent_score
@@ -124,7 +135,9 @@ class SeverityAgent(BaseAgent):
             "w_keyword": 0.25,
             "w_emotion": 0.15,
             "w_reasoning": 0.1,
-            "critical_floor_applied": 1.0 if _has_critical_floor_keyword(transcript) else 0.0,
+            "critical_floor_applied": 1.0
+            if _has_critical_floor_keyword(transcript)
+            else 0.0,
         }
 
         reasoning = (

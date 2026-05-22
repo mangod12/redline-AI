@@ -1,10 +1,10 @@
-from enum import Enum
-from typing import Dict, List, Optional
+from enum import Enum, StrEnum
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
 
-class IntentType(str, Enum):
+class IntentType(StrEnum):
     MEDICAL = "medical"
     FIRE = "fire"
     VIOLENT_CRIME = "violent_crime"
@@ -18,19 +18,17 @@ class IntentType(str, Enum):
 class IntentAnalysis(BaseModel):
     """Structured output for intent classification."""
 
-    intent: IntentType = Field(
-        ..., description="The primary identified intent."
-    )
+    intent: IntentType = Field(..., description="The primary identified intent.")
     confidence: float = Field(
         ..., ge=0.0, le=1.0, description="Confidence score for the primary intent."
     )
-    intent_scores: Dict[IntentType, float] = Field(
+    intent_scores: dict[IntentType, float] = Field(
         default_factory=dict, description="Probabilities for each intent class."
     )
     fallback_used: bool = Field(
         default=False,
         description="True if ML inference failed/timed out and heuristic fallback was used.",
     )
-    metadata: Dict[str, str] = Field(
+    metadata: dict[str, str] = Field(
         default_factory=dict, description="Additional context or execution flags."
     )

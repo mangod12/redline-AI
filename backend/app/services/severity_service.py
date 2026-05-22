@@ -7,27 +7,80 @@ returned by the EmotionAgent to produce a four-level severity string.
 from __future__ import annotations
 
 # Keywords that push severity higher
-_CRITICAL_KW = frozenset([
-    "dying", "dead", "not breathing", "gun", "shot", "stabbed",
-    "explosion", "major accident", "cardiac arrest", "unconscious",
-    "no pulse", "overdose", "active shooter", "hostage", "mass casualty",
-    "collapsed building", "bomb", "chest pain", "seizure",
-])
+_CRITICAL_KW = frozenset(
+    [
+        "dying",
+        "dead",
+        "not breathing",
+        "gun",
+        "shot",
+        "stabbed",
+        "explosion",
+        "major accident",
+        "cardiac arrest",
+        "unconscious",
+        "no pulse",
+        "overdose",
+        "active shooter",
+        "hostage",
+        "mass casualty",
+        "collapsed building",
+        "bomb",
+        "chest pain",
+        "seizure",
+    ]
+)
 
-_HIGH_KW = frozenset([
-    "fire", "blood", "bleeding", "can't breathe", "choking",
-    "broken", "serious", "pain", "emergency",
-    "crash", "collision", "trapped", "assault", "robbery",
-    "weapon", "knife", "smoke", "gas leak", "carbon monoxide",
-    "suicide", "self harm", "heart attack", "burning",
-])
+_HIGH_KW = frozenset(
+    [
+        "fire",
+        "blood",
+        "bleeding",
+        "can't breathe",
+        "choking",
+        "broken",
+        "serious",
+        "pain",
+        "emergency",
+        "crash",
+        "collision",
+        "trapped",
+        "assault",
+        "robbery",
+        "weapon",
+        "knife",
+        "smoke",
+        "gas leak",
+        "carbon monoxide",
+        "suicide",
+        "self harm",
+        "heart attack",
+        "burning",
+    ]
+)
 
-_MEDIUM_KW = frozenset([
-    "hurt", "injury", "sick", "fell", "help", "scared",
-    "worried", "anxiety", "accident", "fender bender",
-    "dizzy", "faint", "mental", "crisis", "panic",
-    "distress", "agitated", "bad",
-])
+_MEDIUM_KW = frozenset(
+    [
+        "hurt",
+        "injury",
+        "sick",
+        "fell",
+        "help",
+        "scared",
+        "worried",
+        "anxiety",
+        "accident",
+        "fender bender",
+        "dizzy",
+        "faint",
+        "mental",
+        "crisis",
+        "panic",
+        "distress",
+        "agitated",
+        "bad",
+    ]
+)
 
 # Emotions that boost severity level up by one tier
 _HIGH_URGENCY_EMOTIONS = frozenset(["fear", "anger"])
@@ -45,7 +98,13 @@ async def compute_severity(transcript: str, emotion: str) -> str:
     lower = transcript.lower()
 
     # Check for explicit non-emergency phrases first (prevents "emergency" substring match)
-    _NON_EMERGENCY_PHRASES = ("non emergency", "non-emergency", "nonemergency", "follow up", "follow-up")
+    _NON_EMERGENCY_PHRASES = (
+        "non emergency",
+        "non-emergency",
+        "nonemergency",
+        "follow up",
+        "follow-up",
+    )
     if any(phrase in lower for phrase in _NON_EMERGENCY_PHRASES):
         base = "low"
     elif any(kw in lower for kw in _CRITICAL_KW):
@@ -60,9 +119,8 @@ async def compute_severity(transcript: str, emotion: str) -> str:
     # Optionally promote by one tier based on emotion
     if emotion in _HIGH_URGENCY_EMOTIONS:
         base = _promote(base)
-    elif emotion in _MEDIUM_URGENCY_EMOTIONS:
-        if base == "low":
-            base = "medium"
+    elif emotion in _MEDIUM_URGENCY_EMOTIONS and base == "low":
+        base = "medium"
 
     return base
 

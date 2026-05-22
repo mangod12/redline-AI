@@ -9,15 +9,16 @@ Metrics emitted:
   intent_based_routing_count   — routed via intent
   keyword_fallback_routing_count — routed via keywords
 """
+
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import structlog
 from prometheus_client import Counter
 
 from app.agents.base import BaseAgent
-from app.core.schemas import DispatchReport, DispatchAction, SafetyOutput
+from app.core.schemas import DispatchAction, DispatchReport, SafetyOutput
 from app.core.schemas.intent import IntentType
 
 log = structlog.get_logger("redline_ai.agents.dispatch")
@@ -36,62 +37,106 @@ KEYWORD_FALLBACK_ROUTING_COUNT = Counter(
 # ---------------------------------------------------------------------------
 
 # Intent → primary responder
-_INTENT_RESPONDER: Dict[IntentType, str] = {
-    IntentType.MEDICAL:        "ambulance",
-    IntentType.FIRE:           "fire",
-    IntentType.VIOLENT_CRIME:  "police",
-    IntentType.ACCIDENT:       "police",
-    IntentType.GAS_HAZARD:     "fire",
-    IntentType.MENTAL_HEALTH:  "ambulance",
-    IntentType.NON_EMERGENCY:  "other",
-    IntentType.UNKNOWN:        "police",   # conservative default
+_INTENT_RESPONDER: dict[IntentType, str] = {
+    IntentType.MEDICAL: "ambulance",
+    IntentType.FIRE: "fire",
+    IntentType.VIOLENT_CRIME: "police",
+    IntentType.ACCIDENT: "police",
+    IntentType.GAS_HAZARD: "fire",
+    IntentType.MENTAL_HEALTH: "ambulance",
+    IntentType.NON_EMERGENCY: "other",
+    IntentType.UNKNOWN: "police",  # conservative default
 }
 
 # Intent → DispatchAction
-_INTENT_ACTION: Dict[IntentType, DispatchAction] = {
-    IntentType.MEDICAL:        DispatchAction.SEND_EMERGENCY_SERVICES,
-    IntentType.FIRE:           DispatchAction.SEND_EMERGENCY_SERVICES,
-    IntentType.VIOLENT_CRIME:  DispatchAction.SEND_EMERGENCY_SERVICES,
-    IntentType.ACCIDENT:       DispatchAction.SEND_EMERGENCY_SERVICES,
-    IntentType.GAS_HAZARD:     DispatchAction.SEND_EMERGENCY_SERVICES,
-    IntentType.MENTAL_HEALTH:  DispatchAction.SEND_EMERGENCY_SERVICES,
-    IntentType.NON_EMERGENCY:  DispatchAction.MONITOR_SITUATION,
-    IntentType.UNKNOWN:        DispatchAction.NOTIFY_AUTHORITIES,
+_INTENT_ACTION: dict[IntentType, DispatchAction] = {
+    IntentType.MEDICAL: DispatchAction.SEND_EMERGENCY_SERVICES,
+    IntentType.FIRE: DispatchAction.SEND_EMERGENCY_SERVICES,
+    IntentType.VIOLENT_CRIME: DispatchAction.SEND_EMERGENCY_SERVICES,
+    IntentType.ACCIDENT: DispatchAction.SEND_EMERGENCY_SERVICES,
+    IntentType.GAS_HAZARD: DispatchAction.SEND_EMERGENCY_SERVICES,
+    IntentType.MENTAL_HEALTH: DispatchAction.SEND_EMERGENCY_SERVICES,
+    IntentType.NON_EMERGENCY: DispatchAction.MONITOR_SITUATION,
+    IntentType.UNKNOWN: DispatchAction.NOTIFY_AUTHORITIES,
 }
 
 # Intent → supporting resources
-_INTENT_RESOURCES: Dict[IntentType, list[str]] = {
-    IntentType.MEDICAL:        ["ambulance", "paramedics"],
-    IntentType.FIRE:           ["fire department", "ambulance"],
-    IntentType.VIOLENT_CRIME:  ["police", "ambulance"],
-    IntentType.ACCIDENT:       ["police", "ambulance", "tow truck"],
-    IntentType.GAS_HAZARD:     ["fire department", "gas utility", "police"],
-    IntentType.MENTAL_HEALTH:  ["ambulance", "crisis counselor"],
-    IntentType.NON_EMERGENCY:  [],
-    IntentType.UNKNOWN:        ["police"],
+_INTENT_RESOURCES: dict[IntentType, list[str]] = {
+    IntentType.MEDICAL: ["ambulance", "paramedics"],
+    IntentType.FIRE: ["fire department", "ambulance"],
+    IntentType.VIOLENT_CRIME: ["police", "ambulance"],
+    IntentType.ACCIDENT: ["police", "ambulance", "tow truck"],
+    IntentType.GAS_HAZARD: ["fire department", "gas utility", "police"],
+    IntentType.MENTAL_HEALTH: ["ambulance", "crisis counselor"],
+    IntentType.NON_EMERGENCY: [],
+    IntentType.UNKNOWN: ["police"],
 }
 
 # Keyword-based fallback (ordered: most specific first)
 _KEYWORD_ROUTES: list[tuple[list[str], str, DispatchAction]] = [
     # (keywords, responder, action)
-    (["heart attack", "not breathing", "unconscious", "cardiac arrest", "stroke",
-      "seizure", "overdose", "bleeding", "injury", "pain", "medical"],
-     "ambulance", DispatchAction.SEND_EMERGENCY_SERVICES),
-    (["fire", "burning", "flames", "smoke", "gas leak", "explosion"],
-     "fire", DispatchAction.SEND_EMERGENCY_SERVICES),
-    (["gun", "shooting", "stab", "knife", "robbery", "assault", "active shooter",
-      "hostage", "domestic violence"], "police", DispatchAction.SEND_EMERGENCY_SERVICES),
-    (["accident", "crash", "collision", "hit and run"], "police",
-     DispatchAction.SEND_EMERGENCY_SERVICES),
-    (["suicidal", "mental", "crisis", "distress"], "ambulance",
-     DispatchAction.NOTIFY_AUTHORITIES),
+    (
+        [
+            "heart attack",
+            "not breathing",
+            "unconscious",
+            "cardiac arrest",
+            "stroke",
+            "seizure",
+            "overdose",
+            "bleeding",
+            "injury",
+            "pain",
+            "medical",
+        ],
+        "ambulance",
+        DispatchAction.SEND_EMERGENCY_SERVICES,
+    ),
+    (
+        ["fire", "burning", "flames", "smoke", "gas leak", "explosion"],
+        "fire",
+        DispatchAction.SEND_EMERGENCY_SERVICES,
+    ),
+    (
+        [
+            "gun",
+            "shooting",
+            "stab",
+            "knife",
+            "robbery",
+            "assault",
+            "active shooter",
+            "hostage",
+            "domestic violence",
+        ],
+        "police",
+        DispatchAction.SEND_EMERGENCY_SERVICES,
+    ),
+    (
+        ["accident", "crash", "collision", "hit and run"],
+        "police",
+        DispatchAction.SEND_EMERGENCY_SERVICES,
+    ),
+    (
+        ["suicidal", "mental", "crisis", "distress"],
+        "ambulance",
+        DispatchAction.NOTIFY_AUTHORITIES,
+    ),
 ]
 
 # Critical keyword override — always sends all services
-_CRITICAL_OVERRIDE_KEYWORDS = frozenset([
-    "active shooter", "hostage", "bomb", "explosion", "mass casualty",
-    "collapsed building", "cardiac arrest", "not breathing",
-])
+_CRITICAL_OVERRIDE_KEYWORDS = frozenset(
+    [
+        "active shooter",
+        "hostage",
+        "bomb",
+        "explosion",
+        "mass casualty",
+        "collapsed building",
+        "cardiac arrest",
+        "not breathing",
+    ]
+)
 
 _INTENT_CONFIDENCE_THRESHOLD = 0.6
 
@@ -100,14 +145,13 @@ _INTENT_CONFIDENCE_THRESHOLD = 0.6
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _keyword_route(text: str) -> tuple[str, DispatchAction, list[str]]:
     """Return (responder, action, resources) from keyword matching."""
     lower = text.lower()
     for keywords, responder, action in _KEYWORD_ROUTES:
         if any(kw in lower for kw in keywords):
-            resources = _INTENT_RESOURCES.get(
-                IntentType.UNKNOWN, ["police"]
-            )
+            resources = _INTENT_RESOURCES.get(IntentType.UNKNOWN, ["police"])
             if responder == "ambulance":
                 resources = ["ambulance", "paramedics"]
             elif responder == "fire":
@@ -127,10 +171,11 @@ def _critical_override(text: str) -> bool:
 # Agent
 # ---------------------------------------------------------------------------
 
+
 class DispatchAgent(BaseAgent):
     """Intent-first dispatch routing with keyword critical override."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         self._config = config or {}
 
     def get_input_schema(self) -> type:
@@ -142,7 +187,9 @@ class DispatchAgent(BaseAgent):
     async def process(self, input_data: SafetyOutput) -> DispatchReport:
         # Pull intent data injected into metadata by the pipeline orchestrator
         raw_intent = input_data.metadata.get("intent", IntentType.UNKNOWN.value)
-        intent_confidence: float = float(input_data.metadata.get("intent_confidence", 0.0))
+        intent_confidence: float = float(
+            input_data.metadata.get("intent_confidence", 0.0)
+        )
         transcript: str = str(input_data.metadata.get("keyword_text", ""))
 
         try:
@@ -170,14 +217,18 @@ class DispatchAgent(BaseAgent):
             )
 
         # ── 2. Intent-based routing ─────────────────────────────────────────
-        if intent_confidence >= _INTENT_CONFIDENCE_THRESHOLD and intent != IntentType.UNKNOWN:
+        if (
+            intent_confidence >= _INTENT_CONFIDENCE_THRESHOLD
+            and intent != IntentType.UNKNOWN
+        ):
             INTENT_ROUTING_COUNT.inc()
             action = _INTENT_ACTION[intent]
             resources = _INTENT_RESOURCES[intent]
             responder = _INTENT_RESPONDER[intent]
 
             priority = (
-                "immediate" if action == DispatchAction.SEND_EMERGENCY_SERVICES
+                "immediate"
+                if action == DispatchAction.SEND_EMERGENCY_SERVICES
                 else "routine"
             )
 
@@ -215,7 +266,9 @@ class DispatchAgent(BaseAgent):
         )
         return DispatchReport(
             action=action,
-            priority="urgent" if action == DispatchAction.SEND_EMERGENCY_SERVICES else "routine",
+            priority="urgent"
+            if action == DispatchAction.SEND_EMERGENCY_SERVICES
+            else "routine",
             resources_required=resources,
             reasoning=(
                 f"Intent confidence {intent_confidence:.2f} below threshold — "

@@ -1,5 +1,6 @@
 from typing import Literal
 
+
 class SeverityEngine:
     """Computes severity score based on panic, keyword and incident priority."""
 
@@ -10,7 +11,9 @@ class SeverityEngine:
         "unknown": 0.5,
     }
 
-    def calculate(self, panic_score: float, keyword_score: float, incident_type: str) -> float:
+    def calculate(
+        self, panic_score: float, keyword_score: float, incident_type: str
+    ) -> float:
         incident_priority = self.INCIDENT_PRIORITIES.get(incident_type, 0.5)
         base = 0.4 * panic_score + 0.3 * keyword_score + 0.3 * incident_priority
         # convert to 0-10 scale

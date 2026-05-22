@@ -1,17 +1,17 @@
-from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-import structlog
+from uuid import UUID
 
-from app.services import call_service
-from app.services.base import CRUDBase
-from app.services.translation_service import TranslationService
-from app.services.ml_client import MLClient
-from app.services.severity_engine import SeverityEngine
-from app.services.geocoder import Geocoder
+import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.events import publish_call_event
 from app.models.severity_report import SeverityReport
+from app.services import call_service
+from app.services.base import CRUDBase
+from app.services.geocoder import Geocoder
+from app.services.ml_client import MLClient
+from app.services.severity_engine import SeverityEngine
+from app.services.translation_service import TranslationService
 
 logger = structlog.get_logger("redline_ai.processing")
 
@@ -51,7 +51,16 @@ class CallProcessor:
                 "tenant_id": tenant_id,
             },
         )
-        await publish_call_event(call_id, "TRANSCRIPT_RECEIVED", {"text": translated, "transcript_id": str(transcript.id), "language": language, "tenant_id": tenant_id})
+        await publish_call_event(
+            call_id,
+            "TRANSCRIPT_RECEIVED",
+            {
+                "text": translated,
+                "transcript_id": str(transcript.id),
+                "language": language,
+                "tenant_id": tenant_id,
+            },
+        )
         return transcript
 
     async def process_transcript(
@@ -71,6 +80,7 @@ class CallProcessor:
         """
         # ensure call_id is UUID object
         from uuid import UUID as _UUID
+
         if not isinstance(call_id, _UUID):
             call_id = _UUID(str(call_id))
 
@@ -84,7 +94,9 @@ class CallProcessor:
         try:
             analysis = await self.ml_client.analyze(str(call_id), translated, language)
         except Exception as exc:
-            logger.error("ML analysis failed for call %s: %s", call_id, exc, exc_info=True)
+            logger.error(
+                "ML analysis failed for call %s: %s", call_id, exc, exc_info=True
+            )
             analysis = {}
         # store analysis
         analysis_data = {
@@ -96,7 +108,9 @@ class CallProcessor:
             "location_text": analysis.get("location_text"),
             "tenant_id": tenant_id,
         }
-        analysis_record = await call_service.analysis_result.create(db, obj_in=analysis_data)
+        analysis_record = await call_service.analysis_result.create(
+            db, obj_in=analysis_data
+        )
         await publish_call_event(call_id, "ML_ANALYSIS_COMPLETE", analysis)
 
         # severity calculation
@@ -117,7 +131,9 @@ class CallProcessor:
                 "tenant_id": tenant_id,
             },
         )
-        await publish_call_event(call_id, "SEVERITY_UPDATED", {"score": score, "category": category})
+        await publish_call_event(
+            call_id, "SEVERITY_UPDATED", {"score": score, "category": category}
+        )
 
         # location resolution
         geo = None
@@ -138,6 +154,7 @@ class CallProcessor:
 
         # dispatch recommendation
         from app.services.dispatch_service import select_responder
+
         responder = await select_responder(analysis_data["incident_type"], category)
         dispatch_info = {
             "unit_id": responder,

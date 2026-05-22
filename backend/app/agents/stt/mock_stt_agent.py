@@ -1,20 +1,23 @@
 import asyncio
 import io
-import tempfile
-import os
 import logging
-from typing import Any, Dict
+import os
+import tempfile
+from typing import Any
+
 import whisper
 from pydub import AudioSegment
-from ..base import BaseAgent
+
 from ...core.schemas import Transcript
+from ..base import BaseAgent
 
 logger = logging.getLogger("redline_ai.stt")
+
 
 class MockSTTAgent(BaseAgent):
     """STT Agent using OpenAI Whisper (Local/Free)."""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: dict[str, Any] = None):
         self.config = config or {}
         # Load whisper model (base is a good balance for student hardware)
         logger.info("Loading Whisper model...")
@@ -36,10 +39,10 @@ class MockSTTAgent(BaseAgent):
 
     def _transcribe(self, audio_bytes: bytes) -> Transcript:
         try:
-            # Whisper expects a filename or numpy array. 
+            # Whisper expects a filename or numpy array.
             # We'll use a temp file for simplicity with raw bytes.
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-                # Convert raw bytes to wav using pydub if necessary 
+                # Convert raw bytes to wav using pydub if necessary
                 # (Assumes source is something pydub can handle like mp3/wav/ogg)
                 audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
                 audio.export(tmp_file.name, format="wav")
@@ -48,12 +51,12 @@ class MockSTTAgent(BaseAgent):
             try:
                 # Transcribe
                 result = self.model.transcribe(tmp_path)
-                
+
                 return Transcript(
                     text=result.get("text", "").strip(),
-                    confidence=0.9, # Whisper doesn't give a simple aggregate confidence easily
+                    confidence=0.9,  # Whisper doesn't give a simple aggregate confidence easily
                     language=result.get("language", "en"),
-                    audio_duration=len(audio) / 1000.0
+                    audio_duration=len(audio) / 1000.0,
                 )
             finally:
                 if os.path.exists(tmp_path):
@@ -65,7 +68,7 @@ class MockSTTAgent(BaseAgent):
                 text="[Transcription failed]",
                 confidence=0.0,
                 language="en",
-                audio_duration=0.0
+                audio_duration=0.0,
             )
 
     def get_input_schema(self):

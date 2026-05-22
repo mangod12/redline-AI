@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, ForeignKey, JSON
+from sqlalchemy import JSON, Column, ForeignKey, String
+
 from app.models.base import TenantModel
 
 

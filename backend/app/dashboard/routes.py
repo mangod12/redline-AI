@@ -1,18 +1,18 @@
 """Dashboard routes — GET /dashboard, GET /api/v1/calls/live, WS /ws/dashboard."""
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from pathlib import Path
-from typing import Set
 
 from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.security import require_jwt_token
-
 from app.dashboard import call_store
 
 router = APIRouter()
@@ -23,7 +23,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 # ---------------------------------------------------------------------------
 # Connected dashboard clients
 # ---------------------------------------------------------------------------
-_dashboard_clients: Set[WebSocket] = set()
+_dashboard_clients: set[WebSocket] = set()
 
 
 async def _broadcast_to_dashboards(message: dict) -> None:
@@ -89,12 +89,17 @@ async def ws_dashboard(websocket: WebSocket):
 
     try:
         import jwt
+
         from app.core.config import settings
         from app.core.security import ALGORITHM
 
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         tenant_id = payload.get("tenant_id", "")
-        logger.info("Dashboard WS authenticated, user=%s tenant=%s", payload.get("sub"), tenant_id)
+        logger.info(
+            "Dashboard WS authenticated, user=%s tenant=%s",
+            payload.get("sub"),
+            tenant_id,
+        )
     except Exception:
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
@@ -110,7 +115,9 @@ async def ws_dashboard(websocket: WebSocket):
         while True:
             redis = get_redis_client()
             if not redis:
-                logger.warning("Redis unavailable for dashboard WS, retrying in %ss", backoff)
+                logger.warning(
+                    "Redis unavailable for dashboard WS, retrying in %ss", backoff
+                )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, _MAX_BACKOFF_S)
                 continue
@@ -150,15 +157,15 @@ async def ws_dashboard(websocket: WebSocket):
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                logger.error("Dashboard pubsub error: %s, retrying in %ss", exc, backoff)
+                logger.error(
+                    "Dashboard pubsub error: %s, retrying in %ss", exc, backoff
+                )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, _MAX_BACKOFF_S)
             finally:
                 if pubsub:
-                    try:
+                    with contextlib.suppress(Exception):
                         await pubsub.unsubscribe("redline.events.calls")
-                    except Exception:
-                        pass
 
     # --- keepalive ping ---
     async def _keepalive_ping() -> None:

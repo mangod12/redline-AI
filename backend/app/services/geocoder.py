@@ -1,16 +1,17 @@
-import re
-import httpx
 import logging
+import re
 from typing import Optional
+
+import httpx
 
 from app.core.config import settings
 
 logger = logging.getLogger("redline_ai.geocoder")
 
-_CONTROL_CHARS = re.compile(r'[\x00-\x1f\x7f-\x9f]')
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 
 # Module-level shared client
-_shared_client: Optional[httpx.AsyncClient] = None
+_shared_client: httpx.AsyncClient | None = None
 
 
 def _get_client() -> httpx.AsyncClient:
@@ -28,9 +29,7 @@ class Geocoder:
 
     def __init__(self):
         self.base_url = settings.GEOCODER_BASE_URL
-        self.headers = {
-            "User-Agent": "RedlineAI-EmergencyGeocoder/1.0"
-        }
+        self.headers = {"User-Agent": "RedlineAI-EmergencyGeocoder/1.0"}
 
     async def close(self):
         pass  # Client is shared; closed at app shutdown
@@ -43,13 +42,9 @@ class Geocoder:
         if not text:
             return {"latitude": 0.0, "longitude": 0.0, "confidence": 0.0, "query": text}
 
-        text = _CONTROL_CHARS.sub('', text.strip())[:500]
+        text = _CONTROL_CHARS.sub("", text.strip())[:500]
 
-        params = {
-            "q": text,
-            "format": "json",
-            "limit": 1
-        }
+        params = {"q": text, "format": "json", "limit": 1}
 
         try:
             client = _get_client()
@@ -68,14 +63,9 @@ class Geocoder:
                     "longitude": float(result["lon"]),
                     "confidence": 1.0 if result.get("importance", 0) > 0.5 else 0.7,
                     "query": text,
-                    "display_name": result.get("display_name")
+                    "display_name": result.get("display_name"),
                 }
         except Exception as e:
             logger.error("Geocoding error for '%s': %s", text, e)
 
-        return {
-            "latitude": 0.0,
-            "longitude": 0.0,
-            "confidence": 0.0,
-            "query": text
-        }
+        return {"latitude": 0.0, "longitude": 0.0, "confidence": 0.0, "query": text}

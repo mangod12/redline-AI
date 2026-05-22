@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, JSON
+from sqlalchemy import JSON, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.models.base import TenantModel
@@ -7,7 +7,9 @@ from app.models.base import TenantModel
 class SeverityReport(TenantModel):
     __tablename__ = "severity_reports"
 
-    call_id = Column(ForeignKey("calls.id", ondelete="CASCADE"), index=True, nullable=False)
+    call_id = Column(
+        ForeignKey("calls.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     severity_score = Column(Integer, index=True, nullable=False)
     category = Column(String, nullable=False)
     keywords_detected = Column(JSON, default=list, nullable=False)

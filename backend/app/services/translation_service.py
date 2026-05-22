@@ -1,13 +1,14 @@
-import httpx
 import logging
 from typing import Optional
+
+import httpx
 
 from app.core.config import settings
 
 logger = logging.getLogger("redline_ai.translation")
 
 # Module-level shared client — reused across all TranslationService instances
-_shared_client: Optional[httpx.AsyncClient] = None
+_shared_client: httpx.AsyncClient | None = None
 
 
 def _get_client() -> httpx.AsyncClient:
@@ -26,6 +27,7 @@ class TranslationService:
     def __init__(self, api_url: str = ""):
         api_url = api_url or settings.TRANSLATION_SERVICE_URL
         from urllib.parse import urlparse
+
         parsed = urlparse(api_url)
         if parsed.scheme not in ("http", "https"):
             raise ValueError(f"Invalid translation service URL scheme: {parsed.scheme}")
@@ -42,7 +44,7 @@ class TranslationService:
             "q": text,
             "source": source_lang.lower()[:2],
             "target": "en",
-            "format": "text"
+            "format": "text",
         }
 
         try:
@@ -52,7 +54,9 @@ class TranslationService:
             if response.status_code == 200:
                 return response.json().get("translatedText", text)
             else:
-                logger.warning("LibreTranslate returned status %s", response.status_code)
+                logger.warning(
+                    "LibreTranslate returned status %s", response.status_code
+                )
         except Exception as e:
             logger.error("Translation error: %s", e)
 

@@ -23,8 +23,10 @@ class IntentModelLoader:
 
     def __init__(self) -> None:
         self._tokenizer = None
-        self._session: Optional[ort.InferenceSession] = None
-        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="intent-onnx")
+        self._session: ort.InferenceSession | None = None
+        self._executor = ThreadPoolExecutor(
+            max_workers=2, thread_name_prefix="intent-onnx"
+        )
         self._init_lock = asyncio.Lock()
         self._ready = False
         self._input_names: set[str] = set()
@@ -59,8 +61,13 @@ class IntentModelLoader:
         self._input_names = {inp.name for inp in self._session.get_inputs()}
 
     def _export_default_onnx(self) -> None:
-        log.warning("Intent ONNX model not found at %s. Exporting default DistilBERT.", self._onnx_path)
-        model = AutoModelForSequenceClassification.from_pretrained(settings.INTENT_MODEL_NAME)
+        log.warning(
+            "Intent ONNX model not found at %s. Exporting default DistilBERT.",
+            self._onnx_path,
+        )
+        model = AutoModelForSequenceClassification.from_pretrained(
+            settings.INTENT_MODEL_NAME
+        )
         model.eval()
         tokenizer = AutoTokenizer.from_pretrained(settings.INTENT_MODEL_NAME)
         encoded = tokenizer(

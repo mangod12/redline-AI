@@ -1,10 +1,10 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 import asyncio
+import contextlib
 import json
 import logging
-from typing import Dict
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from prometheus_client import Gauge
 
 from app.api.deps import get_current_user
@@ -18,17 +18,20 @@ WEBSOCKET_CONNECTIONS = Gauge(
     "Number of active WebSocket connections",
 )
 
+
 class ConnectionManager:
     def __init__(self):
         # Maps call_id -> list of websockets
-        self.active_connections: Dict[str, list[WebSocket]] = {}
+        self.active_connections: dict[str, list[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, call_id: str):
         await websocket.accept()
         if call_id not in self.active_connections:
             self.active_connections[call_id] = []
         self.active_connections[call_id].append(websocket)
-        logger.info(f"WebSocket connected for call {call_id}. Total connections: {len(self.active_connections[call_id])}")
+        logger.info(
+            f"WebSocket connected for call {call_id}. Total connections: {len(self.active_connections[call_id])}"
+        )
 
     def disconnect(self, websocket: WebSocket, call_id: str):
         if call_id in self.active_connections:
@@ -46,7 +49,9 @@ class ConnectionManager:
                 except Exception as e:
                     logger.error(f"Error sending message to client: {e}")
 
+
 manager = ConnectionManager()
+
 
 @router.websocket("/calls/{call_id}")
 async def websocket_endpoint(websocket: WebSocket, call_id: str):
@@ -58,27 +63,35 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
 
     # Validate call_id format (must be valid UUID)
     import re
-    uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.I)
+
+    uuid_pattern = re.compile(
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I
+    )
     if not uuid_pattern.match(call_id):
         await websocket.close(code=4002, reason="Invalid call_id format")
         return
 
     try:
         import jwt
+
         from app.core.config import settings
         from app.core.security import ALGORITHM
+
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         # Token is valid — proceed with connection
-        logger.info(f"WebSocket authenticated for call {call_id}, user={payload.get('sub')}")
+        logger.info(
+            f"WebSocket authenticated for call {call_id}, user={payload.get('sub')}"
+        )
     except Exception:
         await websocket.close(code=4001, reason="Invalid or expired token")
         return
 
     # Verify tenant has access to this call
     try:
+        from sqlalchemy import select
+
         from app.core.database import AsyncSessionLocal
         from app.models.emergency_call import EmergencyCall
-        from sqlalchemy import select
 
         user_tenant = payload.get("tenant_id")
         async with AsyncSessionLocal() as session:
@@ -86,10 +99,14 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
                 select(EmergencyCall).where(EmergencyCall.call_id == call_id)
             )
             call_record = result.scalar_one_or_none()
-            if call_record and hasattr(call_record, 'tenant_id') and call_record.tenant_id:
-                if str(call_record.tenant_id) != str(user_tenant):
-                    await websocket.close(code=4003, reason="Access denied to this call")
-                    return
+            if (
+                call_record
+                and hasattr(call_record, "tenant_id")
+                and call_record.tenant_id
+                and str(call_record.tenant_id) != str(user_tenant)
+            ):
+                await websocket.close(code=4003, reason="Access denied to this call")
+                return
     except Exception as exc:
         logger.error(f"Tenant verification failed for call {call_id}: {exc}")
         await websocket.close(code=4503, reason="Tenant verification unavailable")
@@ -103,7 +120,7 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
         logger.error("Redis not initialized for websockets")
         manager.disconnect(websocket, call_id)
         return
-        
+
     pubsub = redis.pubsub()
     channel_name = f"call_events:{call_id}"
     await pubsub.subscribe(channel_name)
@@ -156,7 +173,5 @@ async def websocket_endpoint(websocket: WebSocket, call_id: str):
     finally:
         WEBSOCKET_CONNECTIONS.dec()
         manager.disconnect(websocket, call_id)
-        try:
+        with contextlib.suppress(Exception):
             await pubsub.unsubscribe(channel_name)
-        except Exception:
-            pass

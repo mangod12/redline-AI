@@ -75,14 +75,12 @@ def process_emergency_call(
     try:
         r = _get_redis_sync()
         r.publish(REDIS_EVENTS_CHANNEL, json.dumps(event_payload))
-        logger.info(
-            "Published event to %s | call_id=%s", REDIS_EVENTS_CHANNEL, call_id
-        )
+        logger.info("Published event to %s | call_id=%s", REDIS_EVENTS_CHANNEL, call_id)
     except Exception as exc:
         logger.error(
             "Failed to publish event to Redis | call_id=%s error=%s", call_id, exc
         )
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
 
     return {
         "call_id": call_id,
@@ -103,7 +101,7 @@ def send_dispatch_notification(
     call_id: str,
     responder: str,
     severity: str,
-    tenant_id: Optional[str] = None,
+    tenant_id: str | None = None,
 ) -> dict:
     """Notify the appropriate dispatch unit of an incoming emergency.
 
@@ -144,7 +142,7 @@ def send_dispatch_notification(
         logger.error(
             "Failed to publish dispatch event | call_id=%s error=%s", call_id, exc
         )
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
 
     return {
         "call_id": call_id,

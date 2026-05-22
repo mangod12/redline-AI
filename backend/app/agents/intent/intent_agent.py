@@ -53,12 +53,44 @@ _intent_breaker = pybreaker.CircuitBreaker(
 
 _KEYWORD_RULES: list[tuple[re.Pattern[str], IntentType]] = [
     (re.compile(r"\b(fire|burning|smoke|flame)\b", re.I), IntentType.FIRE),
-    (re.compile(r"\b(gun|weapon|knife|shoot\w*|stabb\w*|assault\w*|attack\w*|robbery)\b", re.I), IntentType.VIOLENT_CRIME),
-    (re.compile(r"\b(accident\w*|collision|crash\w*|vehicle|truck|car|fender.?bender)\b", re.I), IntentType.ACCIDENT),
-    (re.compile(r"\b(gas leak|fumes|carbon monoxide|chemical smell|gas)\b", re.I), IntentType.GAS_HAZARD),
-    (re.compile(r"\b(chest pain|not breathing|unconscious|seizure\w*|overdose\w*|bleed\w*|injury|medical)\b", re.I), IntentType.MEDICAL),
-    (re.compile(r"\b(suicid\w*|self.?harm|panic\w*|mental|depressed|crisis)\b", re.I), IntentType.MENTAL_HEALTH),
-    (re.compile(r"\b(noise complaint|parking|lost wallet|non.?emergency|information|follow.?up)\b", re.I), IntentType.NON_EMERGENCY),
+    (
+        re.compile(
+            r"\b(gun|weapon|knife|shoot\w*|stabb\w*|assault\w*|attack\w*|robbery)\b",
+            re.I,
+        ),
+        IntentType.VIOLENT_CRIME,
+    ),
+    (
+        re.compile(
+            r"\b(accident\w*|collision|crash\w*|vehicle|truck|car|fender.?bender)\b",
+            re.I,
+        ),
+        IntentType.ACCIDENT,
+    ),
+    (
+        re.compile(r"\b(gas leak|fumes|carbon monoxide|chemical smell|gas)\b", re.I),
+        IntentType.GAS_HAZARD,
+    ),
+    (
+        re.compile(
+            r"\b(chest pain|not breathing|unconscious|seizure\w*|overdose\w*|bleed\w*|injury|medical)\b",
+            re.I,
+        ),
+        IntentType.MEDICAL,
+    ),
+    (
+        re.compile(
+            r"\b(suicid\w*|self.?harm|panic\w*|mental|depressed|crisis)\b", re.I
+        ),
+        IntentType.MENTAL_HEALTH,
+    ),
+    (
+        re.compile(
+            r"\b(noise complaint|parking|lost wallet|non.?emergency|information|follow.?up)\b",
+            re.I,
+        ),
+        IntentType.NON_EMERGENCY,
+    ),
 ]
 
 
@@ -93,7 +125,7 @@ def _keyword_fallback(text: str, reason: str) -> IntentAnalysis:
 
 
 class IntentAgent(BaseAgent):
-    def __init__(self, loader: Optional["IntentModelLoader"] = None) -> None:
+    def __init__(self, loader: IntentModelLoader | None = None) -> None:
         self._loader = loader
 
     def get_input_schema(self) -> type:
@@ -118,13 +150,17 @@ class IntentAgent(BaseAgent):
 
         start = time.perf_counter()
         try:
-            probs = await asyncio.wait_for(self._loader.predict_proba(text), timeout=SOFT_TIMEOUT_S)
+            probs = await asyncio.wait_for(
+                self._loader.predict_proba(text), timeout=SOFT_TIMEOUT_S
+            )
             INTENT_LATENCY.observe(time.perf_counter() - start)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             INTENT_FALLBACK_COUNT.labels(reason="timeout").inc()
             try:
+
                 def _trip_timeout():
                     raise TimeoutError("intent inference timeout")
+
                 _intent_breaker.call(_trip_timeout)
             except Exception:
                 pass
@@ -132,8 +168,10 @@ class IntentAgent(BaseAgent):
         except Exception:
             INTENT_FALLBACK_COUNT.labels(reason="exception").inc()
             try:
+
                 def _trip_error():
                     raise RuntimeError("inference_failed")
+
                 _intent_breaker.call(_trip_error)
             except Exception:
                 pass

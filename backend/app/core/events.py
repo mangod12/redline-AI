@@ -1,10 +1,12 @@
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from uuid import UUID
+
 from app.core.redis_client import get_redis_client
 
 logger = logging.getLogger("redline_ai")
+
 
 async def publish_call_event(call_id: UUID, event_type: str, payload: dict):
     """
@@ -23,7 +25,7 @@ async def publish_call_event(call_id: UUID, event_type: str, payload: dict):
     message = {
         "event_type": event_type,
         "call_id": str(call_id),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "payload": payload,
     }
 

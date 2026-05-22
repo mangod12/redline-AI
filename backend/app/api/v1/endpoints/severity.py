@@ -1,15 +1,16 @@
-from typing import Any, List, Optional
-from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 import json
-import structlog
+from typing import Any
+from uuid import UUID
 
-from app.api.deps import get_db, get_current_user, get_tenant_id
-from app.models.user import User
+import structlog
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_user, get_db, get_tenant_id
 from app.models.call import Call, Transcript
 from app.models.severity_report import SeverityReport
+from app.models.user import User
 from app.schemas.severity_report import SeverityReportResponse
 from app.services.base import CRUDBase
 
@@ -23,13 +24,14 @@ from app.services.severity_engine import SeverityEngine
 
 severity_engine = SeverityEngine()
 
+
 @router.post("/{call_id}/analyze", response_model=SeverityReportResponse)
 async def analyze_severity(
     *,
     db: AsyncSession = Depends(get_db),
     call_id: UUID,
     current_user: User = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_tenant_id)
+    tenant_id: UUID = Depends(get_tenant_id),
 ) -> Any:
     """
     Generate Severity Report for a call.
@@ -39,18 +41,25 @@ async def analyze_severity(
         raise HTTPException(status_code=404, detail="Call not found")
     if call.tenant_id != tenant_id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
-        
+
     # Get latest transcript or full transcript
     result = await db.execute(select(Transcript).where(Transcript.call_id == call_id))
     transcripts = result.scalars().all()
-    
+
     full_text = " ".join([t.original_text for t in transcripts])
-    
+
     # Use SeverityEngine for scoring
     keyword_score = 0.0
     detected = []
     text_lower = full_text.lower()
-    keywords = {"help": 0.2, "fire": 0.5, "gun": 0.7, "blood": 0.6, "accident": 0.5, "heart attack": 0.8}
+    keywords = {
+        "help": 0.2,
+        "fire": 0.5,
+        "gun": 0.7,
+        "blood": 0.6,
+        "accident": 0.5,
+        "heart attack": 0.8,
+    }
     for word, weight in keywords.items():
         if word in text_lower:
             keyword_score += weight
@@ -59,7 +68,7 @@ async def analyze_severity(
 
     score = severity_engine.calculate(0.5, keyword_score, "unknown")
     category = severity_engine.category(score)
-    
+
     report = await severity_crud.create(
         db,
         obj_in={
@@ -67,25 +76,26 @@ async def analyze_severity(
             "severity_score": score,
             "category": category,
             "keywords_detected": detected,
-            "tenant_id": tenant_id
-        }
+            "tenant_id": tenant_id,
+        },
     )
-    
+
     # Cache in Redis
     from app.core.redis_client import get_redis_client
+
     redis = get_redis_client()
     if redis:
         try:
-             # Need to use a json dump to avoid UUID serialization issues
-             data = {
-                 "id": str(report.id),
-                 "call_id": str(report.call_id),
-                 "severity_score": report.severity_score,
-                 "category": report.category,
-                 "keywords_detected": report.keywords_detected,
-                 "tenant_id": str(report.tenant_id)
-             }
-             await redis.set(f"call:{str(call_id)}:severity", json.dumps(data), ex=3600)
+            # Need to use a json dump to avoid UUID serialization issues
+            data = {
+                "id": str(report.id),
+                "call_id": str(report.call_id),
+                "severity_score": report.severity_score,
+                "category": report.category,
+                "keywords_detected": report.keywords_detected,
+                "tenant_id": str(report.tenant_id),
+            }
+            await redis.set(f"call:{str(call_id)}:severity", json.dumps(data), ex=3600)
         except Exception as e:
             logger.error(f"Failed to cache severity: {e}")
 

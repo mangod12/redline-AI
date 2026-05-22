@@ -1,17 +1,21 @@
-from typing import Any, Dict, Optional, Union
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any
+
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import BaseModel
+
 
 class CRUDBase:
     def __init__(self, model):
         self.model = model
 
-    async def get(self, db: AsyncSession, id: Any) -> Optional[BaseModel]:
+    async def get(self, db: AsyncSession, id: Any) -> BaseModel | None:
         return await db.get(self.model, id)
 
-    async def create(self, db: AsyncSession, *, obj_in: Any, auto_commit: bool = True) -> BaseModel:
+    async def create(
+        self, db: AsyncSession, *, obj_in: Any, auto_commit: bool = True
+    ) -> BaseModel:
         obj_in_data = jsonable_encoder(obj_in)
         db_obj = self.model(**obj_in_data)
         db.add(db_obj)
@@ -25,7 +29,7 @@ class CRUDBase:
         db: AsyncSession,
         *,
         db_obj: BaseModel,
-        obj_in: Union[Any, Dict[str, Any]],
+        obj_in: Any | dict[str, Any],
         auto_commit: bool = True,
     ) -> BaseModel:
         obj_data = jsonable_encoder(db_obj)

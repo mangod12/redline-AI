@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, Union
 
+import jwt
 import structlog
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import jwt
 from jwt.exceptions import PyJWTError as JWTError
 from passlib.context import CryptContext
 from slowapi import Limiter
@@ -18,6 +18,7 @@ from app.core.config import settings
 log = structlog.get_logger("redline_ai.security")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 def _tenant_or_ip_key(request: Request) -> str:
     """Rate limit key: tenant_id from JWT if available, else remote IP."""
@@ -41,12 +42,17 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def create_access_token(
-    subject: Union[str, Any], tenant_id: str, role: str, expires_delta: timedelta | None = None
+    subject: str | Any,
+    tenant_id: str,
+    role: str,
+    expires_delta: timedelta | None = None,
 ) -> str:
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(UTC) + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
     to_encode = {
         "exp": expire,
         "sub": str(subject),
@@ -73,7 +79,9 @@ async def require_jwt_token(
             detail="Missing bearer token",
         )
     try:
-        payload = jwt.decode(credentials.credentials, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            credentials.credentials, settings.SECRET_KEY, algorithms=[ALGORITHM]
+        )
         return payload
     except JWTError as exc:
         raise HTTPException(
@@ -105,4 +113,3 @@ async def verify_twilio_signature(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid Twilio signature",
         )
-

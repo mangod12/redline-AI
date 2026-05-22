@@ -1,6 +1,8 @@
-import redis.asyncio as redis
-from app.core.config import settings
 import logging
+
+import redis.asyncio as redis
+
+from app.core.config import settings
 
 logger = logging.getLogger("redline_ai")
 
@@ -30,6 +32,7 @@ async def init_redis():
         logger.warning("Redis not available — trying fakeredis for local dev")
         try:
             import fakeredis.aioredis as fakeredis_mod
+
             _redis_client = fakeredis_mod.FakeRedis(decode_responses=True)
             logger.info("fakeredis started (in-memory, data lost on restart)")
         except ImportError:

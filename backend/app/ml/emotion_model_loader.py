@@ -44,10 +44,10 @@ def _export_pytorch_to_onnx(model_pt_path: Path, onnx_path: Path) -> None:
     This runs synchronously and is called at most once (when the .onnx is absent).
     Import is deferred to avoid loading torch when it is not available.
     """
-    import torch  # type: ignore
-
     # Late import to avoid hard dependency when onnx model already present.
     import sys
+
+    import torch  # type: ignore
 
     ml_dir = model_pt_path.parent
     if str(ml_dir) not in sys.path:
@@ -88,12 +88,11 @@ class EmotionModelLoader:
     """
 
     def __init__(self) -> None:
-        self._session: Optional[ort.InferenceSession] = None
+        self._session: ort.InferenceSession | None = None
         self._lock = threading.Lock()
         # Bound workers to 2 to prevent thread starvation on smaller nodes.
         self._executor = ThreadPoolExecutor(
-            max_workers=2, 
-            thread_name_prefix="onnx-inference"
+            max_workers=2, thread_name_prefix="onnx-inference"
         )
         self._ready = False
 
@@ -134,7 +133,9 @@ class EmotionModelLoader:
             opts.inter_op_num_threads = 2
             opts.intra_op_num_threads = 2
             opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            return ort.InferenceSession(str(onnx_path), sess_options=opts, providers=providers)
+            return ort.InferenceSession(
+                str(onnx_path), sess_options=opts, providers=providers
+            )
 
         session = await loop.run_in_executor(self._executor, _load_session)
 
@@ -160,7 +161,8 @@ class EmotionModelLoader:
         return self._ready
 
     async def predict(
-        self, mfcc: "np.ndarray"  # shape (1, 1, 40, 94), dtype float32
+        self,
+        mfcc: np.ndarray,  # shape (1, 1, 40, 94), dtype float32
     ) -> dict[str, float]:
         """Run inference with a 3-second timeout.
 

@@ -13,13 +13,13 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-import tempfile
 import os
+import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
-from prometheus_client import Histogram, Gauge
-import time
+from prometheus_client import Gauge, Histogram
 
 log = logging.getLogger("redline_ai.services.whisper")
 
@@ -113,11 +113,9 @@ class WhisperService:
 
     def _sync_transcribe(self, audio_bytes: bytes) -> str:
         suffix = ".wav"
-        tmp_path: Optional[str] = None
+        tmp_path: str | None = None
         try:
-            with tempfile.NamedTemporaryFile(
-                suffix=suffix, delete=False
-            ) as tmp:
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
                 tmp.write(audio_bytes)
                 tmp_path = tmp.name
 

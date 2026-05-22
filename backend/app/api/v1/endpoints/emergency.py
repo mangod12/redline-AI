@@ -12,27 +12,36 @@ Pipeline:
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import uuid
-import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse
+from prometheus_client import Counter, Histogram
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import limiter, require_jwt_token
 from app.core.database import get_db
 from app.core.redis_client import get_redis_client
 from app.core.schemas import Transcript
+from app.core.security import limiter, require_jwt_token
+from app.dashboard import call_store
 from app.models.emergency_call import EmergencyCall
 from app.services.cache_service import cache_call
 from app.services.dispatch_service import select_responder
 from app.services.severity_service import compute_severity
-from app.dashboard import call_store
-from prometheus_client import Counter, Histogram
 
 log = logging.getLogger("redline_ai.api.emergency")
 
@@ -68,7 +77,7 @@ router = APIRouter()
 
 class EmergencyJSONRequest(BaseModel):
     transcript: str = Field(..., max_length=10_000)
-    caller_id: Optional[str] = Field(default=None, max_length=64)
+    caller_id: str | None = Field(default=None, max_length=64)
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +94,7 @@ class EmergencyResponse(BaseModel):
     severity: str
     responder: str
     latency_ms: int
-    caller_id: Optional[str]
+    caller_id: str | None
 
 
 # ---------------------------------------------------------------------------
@@ -106,9 +115,9 @@ async def process_emergency(
     db: AsyncSession = Depends(get_db),
     token_payload: dict = Depends(require_jwt_token),
     # Multipart/form-data fields (all optional so JSON path works too)
-    audio_file: Optional[UploadFile] = File(default=None),
-    transcript: Optional[str] = Form(default=None),
-    caller_id: Optional[str] = Form(default=None, max_length=64),
+    audio_file: UploadFile | None = File(default=None),
+    transcript: str | None = Form(default=None),
+    caller_id: str | None = Form(default=None, max_length=64),
 ) -> EmergencyResponse:
     """Process an emergency call end-to-end.
 
@@ -140,7 +149,10 @@ async def process_emergency(
 
     if audio_file is not None:
         # Validate content type
-        if audio_file.content_type and audio_file.content_type not in settings.ALLOWED_AUDIO_TYPES:
+        if (
+            audio_file.content_type
+            and audio_file.content_type not in settings.ALLOWED_AUDIO_TYPES
+        ):
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail=f"Unsupported audio format: {audio_file.content_type}",
@@ -183,7 +195,8 @@ async def process_emergency(
 
     # Sanitize: strip control characters (but preserve unicode text for multi-language)
     import re as _re
-    transcript = _re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', transcript)
+
+    transcript = _re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", transcript)
 
     if len(transcript) > settings.MAX_TRANSCRIPT_LENGTH:
         raise HTTPException(
@@ -206,9 +219,12 @@ async def process_emergency(
         nonlocal intent, intent_confidence, intent_fallback
         try:
             from app.agents.intent.intent_agent import IntentAgent
+
             intent_loader = getattr(request.app.state, "intent_loader", None)
             intent_agent = IntentAgent(loader=intent_loader)
-            intent_result = await intent_agent.process(Transcript(text=transcript, confidence=1.0))
+            intent_result = await intent_agent.process(
+                Transcript(text=transcript, confidence=1.0)
+            )
             intent = intent_result.intent.value
             intent_confidence = float(intent_result.confidence)
             intent_fallback = bool(intent_result.fallback_used)
@@ -219,9 +235,12 @@ async def process_emergency(
         nonlocal emotion_label, emotion_confidence, emotion_fallback
         try:
             from app.agents.emotion.emotion_agent import EmotionAgent
+
             emotion_loader = getattr(request.app.state, "emotion_loader", None)
             agent = EmotionAgent(loader=emotion_loader)
-            emotion_result = await agent.process(Transcript(text=transcript, confidence=1.0))
+            emotion_result = await agent.process(
+                Transcript(text=transcript, confidence=1.0)
+            )
             emotion_label = emotion_result.primary_emotion.value
             emotion_confidence = float(emotion_result.confidence)
             emotion_fallback = emotion_confidence <= 0.0
@@ -244,6 +263,7 @@ async def process_emergency(
     raw_tenant = token_payload.get("tenant_id")
     try:
         from uuid import UUID as _UUID
+
         tenant_uuid = _UUID(str(raw_tenant)) if raw_tenant else None
     except (ValueError, AttributeError):
         tenant_uuid = None
@@ -273,6 +293,7 @@ async def process_emergency(
 
     # Audit: emergency call processed
     from app.services.audit_service import audit_event
+
     audit_event(
         action="emergency_call_processed",
         tenant_id=token_payload.get("tenant_id", ""),
@@ -297,6 +318,7 @@ async def process_emergency(
         "responder": responder,
         "latency_ms": latency_ms,
     }
+
     def _on_cache_done(task: asyncio.Task) -> None:
         if task.exception():
             log.warning("Background cache write failed: %s", task.exception())

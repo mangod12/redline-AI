@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, ForeignKey
+from sqlalchemy import Column, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.models.base import TenantModel
@@ -7,7 +7,9 @@ from app.models.base import TenantModel
 class AnalysisResult(TenantModel):
     __tablename__ = "analysis_results"
 
-    call_id = Column(ForeignKey("calls.id", ondelete="CASCADE"), index=True, nullable=False)
+    call_id = Column(
+        ForeignKey("calls.id", ondelete="CASCADE"), index=True, nullable=False
+    )
     incident_type = Column(String, nullable=False)
     panic_score = Column(Float, nullable=False)
     keyword_score = Column(Float, nullable=False)

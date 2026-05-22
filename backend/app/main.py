@@ -10,30 +10,29 @@ Changes vs original:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
-import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 import structlog
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.responses import Response as StarletteResponse
 from starlette_prometheus import PrometheusMiddleware, metrics
 
-from app.core.config import settings
-from app.core.redis_client import close_redis, init_redis
-from app.core.database import engine, collect_pool_metrics
 from app.api.v1.api import api_router
+from app.core.config import settings
+from app.core.database import collect_pool_metrics, engine
+from app.core.redis_client import close_redis, init_redis
 from app.core.security import limiter, require_jwt_token
+from app.ml.intent_model_loader import IntentModelLoader
 from app.models.base import Base
 from app.services.whisper_service import WhisperService
-from app.ml.intent_model_loader import IntentModelLoader
-
-from slowapi.errors import RateLimitExceeded
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.middleware import SlowAPIMiddleware
 
 # ---------------------------------------------------------------------------
 # structlog JSON configuration (runs at import time)
@@ -73,7 +72,9 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("POSTGRES_PASSWORD must be set in production")
 
     if settings.APP_ENV.lower() == "production" and settings.ENABLE_DOCS:
-        log.warning("ENABLE_DOCS=true in production; docs endpoint is being force-disabled")
+        log.warning(
+            "ENABLE_DOCS=true in production; docs endpoint is being force-disabled"
+        )
 
     if any(origin == "*" for origin in settings.allowed_origins_list):
         raise RuntimeError("Wildcard CORS origin is not allowed")
@@ -83,7 +84,9 @@ async def lifespan(app: FastAPI):
 
     # 3. Database schema (MVP bootstrap — idempotent on restarts)
     async with engine.begin() as conn:
-        await conn.run_sync(lambda sync_conn: Base.metadata.create_all(sync_conn, checkfirst=True))
+        await conn.run_sync(
+            lambda sync_conn: Base.metadata.create_all(sync_conn, checkfirst=True)
+        )
 
     # 4. Local Whisper STT model (CPU), loaded off the event loop
     whisper_service = WhisperService(model_size=settings.WHISPER_MODEL_SIZE)
@@ -99,30 +102,34 @@ async def lifespan(app: FastAPI):
         log.info("Intent ONNX model loaded")
     except Exception as exc:
         app.state.intent_loader = None
-        log.warning("Intent model not available — keyword fallback active", error=str(exc))
+        log.warning(
+            "Intent model not available — keyword fallback active", error=str(exc)
+        )
 
     # 6. Emotion ONNX model (graceful — skip if model files missing)
     try:
         from app.ml.emotion_model_loader import EmotionModelLoader
+
         emotion_loader = EmotionModelLoader()
         await emotion_loader.initialize()
         app.state.emotion_loader = emotion_loader
         log.info("Emotion ONNX model loaded")
     except Exception as exc:
         app.state.emotion_loader = None
-        log.warning("Emotion model not available — heuristic fallback active", error=str(exc))
+        log.warning(
+            "Emotion model not available — heuristic fallback active", error=str(exc)
+        )
 
     # begin background event subscriber
     from app.core.event_listener import start_event_listener
+
     start_event_listener()
 
     # 7. Background pool-metrics collector (PostgreSQL only)
     async def _pool_metrics_loop() -> None:
         while True:
-            try:
+            with suppress(Exception):
                 collect_pool_metrics()
-            except Exception:
-                pass  # never crash the background task
             await asyncio.sleep(15)
 
     pool_metrics_task: asyncio.Task | None = None
@@ -143,11 +150,10 @@ async def lifespan(app: FastAPI):
     # Cancel pool-metrics background task
     if pool_metrics_task is not None:
         pool_metrics_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await pool_metrics_task
-        except asyncio.CancelledError:
-            pass
     from app.core.event_listener import stop_event_listener
+
     await stop_event_listener()
 
     # Shutdown ML models first (they hold thread pools)
@@ -192,7 +198,9 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """Catch-all for unhandled exceptions — returns structured JSON."""
-    log.error("Unhandled exception", path=str(request.url.path), error=str(exc), exc_info=True)
+    log.error(
+        "Unhandled exception", path=str(request.url.path), error=str(exc), exc_info=True
+    )
     return JSONResponse(
         status_code=500,
         content={
@@ -201,6 +209,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             "detail": str(exc) if settings.APP_ENV.lower() != "production" else None,
         },
     )
+
 
 app.add_middleware(PrometheusMiddleware)
 app.add_middleware(SlowAPIMiddleware)
@@ -213,8 +222,8 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_id import RequestIDMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)
@@ -223,15 +232,21 @@ app.add_middleware(RequestIDMiddleware)
 # Routers
 # ---------------------------------------------------------------------------
 
-from app.websockets.connection_manager import router as websocket_router  # noqa: E402
-from app.dashboard.routes import router as dashboard_router  # noqa: E402
 from app.api.v1.endpoints.emergency import router as emergency_router  # noqa: E402
+from app.dashboard.routes import router as dashboard_router  # noqa: E402
+from app.websockets.connection_manager import router as websocket_router  # noqa: E402
 
 # Dashboard router first — /api/v1/calls/live must match before /api/v1/calls/{call_id}
-app.include_router(dashboard_router, tags=["dashboard"], dependencies=[Depends(require_jwt_token)])
-app.include_router(api_router, prefix=settings.API_V1_STR, dependencies=[Depends(require_jwt_token)])
+app.include_router(
+    dashboard_router, tags=["dashboard"], dependencies=[Depends(require_jwt_token)]
+)
+app.include_router(
+    api_router, prefix=settings.API_V1_STR, dependencies=[Depends(require_jwt_token)]
+)
 app.include_router(emergency_router, dependencies=[Depends(require_jwt_token)])
 app.include_router(websocket_router, prefix="/ws", tags=["websockets"])
+
+
 @app.get("/metrics", include_in_schema=False, dependencies=[Depends(require_jwt_token)])
 async def protected_metrics(request: Request) -> StarletteResponse:
     """Metrics endpoint – requires a valid JWT; restrict further at the reverse proxy in production."""
@@ -246,6 +261,7 @@ async def protected_metrics(request: Request) -> StarletteResponse:
 @app.get("/health", tags=["health"])
 async def health_check() -> dict:
     from app.core.database import check_db_health
+
     db_ok = await check_db_health()
     return {
         "status": "ok" if db_ok else "degraded",
@@ -288,10 +304,13 @@ async def readiness_check():
 _BOOT_TIME = None
 
 
-@app.get("/api/v1/system/info", tags=["system"], dependencies=[Depends(require_jwt_token)])
+@app.get(
+    "/api/v1/system/info", tags=["system"], dependencies=[Depends(require_jwt_token)]
+)
 async def system_info() -> dict:
     """System information — version, uptime, model status."""
     import time
+
     global _BOOT_TIME
     if _BOOT_TIME is None:
         _BOOT_TIME = time.time()
@@ -305,13 +324,20 @@ async def system_info() -> dict:
         "environment": settings.APP_ENV,
         "uptime_seconds": int(time.time() - _BOOT_TIME),
         "models": {
-            "whisper": {"ready": whisper_svc is not None and whisper_svc.is_ready(),
-                        "size": settings.WHISPER_MODEL_SIZE},
-            "intent": {"ready": intent_loader is not None and intent_loader.is_ready(),
-                       "type": "onnx_distilbert"},
-            "emotion": {"ready": emotion_loader is not None and emotion_loader.is_ready(),
-                        "type": "onnx_cnn"},
+            "whisper": {
+                "ready": whisper_svc is not None and whisper_svc.is_ready(),
+                "size": settings.WHISPER_MODEL_SIZE,
+            },
+            "intent": {
+                "ready": intent_loader is not None and intent_loader.is_ready(),
+                "type": "onnx_distilbert",
+            },
+            "emotion": {
+                "ready": emotion_loader is not None and emotion_loader.is_ready(),
+                "type": "onnx_cnn",
+            },
         },
-        "database": "postgresql" if "postgresql" in settings.SQLALCHEMY_DATABASE_URI else "sqlite",
+        "database": "postgresql"
+        if "postgresql" in settings.SQLALCHEMY_DATABASE_URI
+        else "sqlite",
     }
-

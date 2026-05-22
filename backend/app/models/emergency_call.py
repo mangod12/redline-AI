@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -29,7 +29,12 @@ class EmergencyCall(Base):
     caller_id: str | None = Column(String(255), nullable=True, index=True)
 
     # Tenant scoping (nullable for backward compatibility with existing rows)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True)
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # STT / raw transcript
     transcript: str = Column(Text, nullable=False)
@@ -43,7 +48,7 @@ class EmergencyCall(Base):
     # Timestamps
     created_at: datetime = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
         index=True,
     )

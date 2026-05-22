@@ -1,7 +1,7 @@
+from prometheus_client import Gauge
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text, event
-from prometheus_client import Gauge
 
 from app.core.config import settings
 
@@ -30,9 +30,7 @@ engine = create_async_engine(
     **_pool_kwargs,
 )
 
-AsyncSessionLocal = sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 async def get_db():

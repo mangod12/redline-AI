@@ -1,9 +1,11 @@
 import asyncio
+import contextlib
 import json
+
 import structlog
 
-from app.core.redis_client import get_redis_client
 from app.core.database import AsyncSessionLocal
+from app.core.redis_client import get_redis_client
 from app.services.call_processing import CallProcessor
 
 logger = structlog.get_logger("redline_ai.event")
@@ -37,7 +39,9 @@ def start_event_listener():
         while True:
             redis = get_redis_client()
             if not redis:
-                logger.warning("Redis not available for event listener, retrying", backoff=backoff)
+                logger.warning(
+                    "Redis not available for event listener, retrying", backoff=backoff
+                )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, _MAX_BACKOFF_S)
                 continue
@@ -77,20 +81,24 @@ def start_event_listener():
                                     tenant_id=payload.get("tenant_id"),
                                 )
                             except Exception as exc:
-                                logger.error("Transcript processing failed", call_id=call_id, error=str(exc))
+                                logger.error(
+                                    "Transcript processing failed",
+                                    call_id=call_id,
+                                    error=str(exc),
+                                )
 
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                logger.error("Event listener connection error", error=str(exc), backoff=backoff)
+                logger.error(
+                    "Event listener connection error", error=str(exc), backoff=backoff
+                )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, _MAX_BACKOFF_S)
             finally:
                 if pubsub:
-                    try:
+                    with contextlib.suppress(Exception):
                         await pubsub.unsubscribe("redline.events.calls")
-                    except Exception:
-                        pass
 
     global _listener_task
     loop = asyncio.get_running_loop()
@@ -102,8 +110,6 @@ async def stop_event_listener():
     global _listener_task
     if _listener_task and not _listener_task.done():
         _listener_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await _listener_task
-        except asyncio.CancelledError:
-            pass
         _listener_task = None

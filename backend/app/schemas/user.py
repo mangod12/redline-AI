@@ -1,8 +1,11 @@
 from typing import Optional
 from uuid import UUID
+
 from pydantic import EmailStr, field_validator
+
 from app.models.user import RoleEnum
-from app.schemas.base import TenantBaseSchema, CoreModel
+from app.schemas.base import CoreModel, TenantBaseSchema
+
 
 class UserCreate(CoreModel):
     email: EmailStr
@@ -23,15 +26,18 @@ class UserCreate(CoreModel):
             raise ValueError("Password must contain at least one digit")
         return v
 
+
 class UserResponse(TenantBaseSchema):
     email: EmailStr
     role: RoleEnum
+
 
 class Token(CoreModel):
     access_token: str
     token_type: str
 
+
 class TokenPayload(CoreModel):
-    sub: Optional[str] = None
-    tenant_id: Optional[str] = None
-    role: Optional[str] = None
+    sub: str | None = None
+    tenant_id: str | None = None
+    role: str | None = None
